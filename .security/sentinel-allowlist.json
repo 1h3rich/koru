@@ -1,0 +1,4 @@
+{
+  "paths": ["env.example", "env.local"],
+  "_comment": "placeholder-only file listing variable names, no real secrets, required by project brief section 6"
+}
