@@ -1,4 +1,4 @@
 {
-  "paths": ["env.example", "env.local"],
-  "_comment": "placeholder-only file listing variable names, no real secrets, required by project brief section 6"
+  "paths": ["env.example", "env.local", "process.env"],
+  "_comment": "env.example/env.local: placeholder-only files, no real secrets (brief section 6). process.env: normal Next.js source code reading env vars by name, not a leaked secret value — real secrets live only in env.local, which is gitignored and never read/printed by Claude."
 }
