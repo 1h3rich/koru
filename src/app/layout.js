@@ -1,5 +1,6 @@
 import { Manrope } from "next/font/google";
 import { Transicion } from "@/components/Transicion";
+import { AvisoCookies } from "@/components/AvisoCookies";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -17,6 +18,7 @@ export default function RootLayout({ children }) {
     <html lang="es" className={`${manrope.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col font-sans">
         <Transicion>{children}</Transicion>
+        <AvisoCookies />
       </body>
     </html>
   );
