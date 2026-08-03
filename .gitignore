@@ -37,6 +37,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# notas de trabajo e informes de auditoria, no son parte de la app
+/notas
+/auditoria-calidad
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
