@@ -83,6 +83,27 @@ export async function vincularPadre(formData) {
   redirect(`/panel/ninos/${nino_id}`)
 }
 
+export async function anadirObjeto(formData) {
+  const nino_id = formData.get('nino_id')?.toString()
+  const objeto = formData.get('objeto')?.toString().trim()
+  if (!nino_id || !objeto) {
+    redirect(`/panel/ninos/${nino_id}`)
+  }
+
+  const supabase = await createClient()
+  await supabase.from('objetos_personales').insert({ nino_id, objeto })
+
+  redirect(`/panel/ninos/${nino_id}`)
+}
+
+export async function borrarObjeto(formData) {
+  const id = formData.get('id')?.toString()
+  const nino_id = formData.get('nino_id')?.toString()
+  const supabase = await createClient()
+  await supabase.from('objetos_personales').delete().eq('id', id)
+  redirect(`/panel/ninos/${nino_id}`)
+}
+
 // Quita el acceso de un padre a un niño. No borra su cuenta de
 // usuario, solo el vínculo — puede seguir teniendo acceso a otros
 // niños.

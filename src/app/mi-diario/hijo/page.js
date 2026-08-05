@@ -84,6 +84,12 @@ export default async function MiHijoPage({ searchParams }) {
     items: (observaciones ?? []).filter((o) => o.area === area),
   })).filter((a) => a.items.length > 0)
 
+  const { data: objetos } = await supabase
+    .from('objetos_personales')
+    .select('id, objeto')
+    .eq('nino_id', nino.id)
+    .order('created_at')
+
   const asistenciaPorFecha = new Map((asistencias ?? []).map((a) => [a.fecha, a]))
 
   const fotosPorFecha = new Map(
@@ -123,6 +129,17 @@ export default async function MiHijoPage({ searchParams }) {
             </a>
           ))}
         </div>
+      )}
+
+      {objetos && objetos.length > 0 && (
+        <Card className="mt-6">
+          <p className="text-sm font-medium text-muted-foreground">🎒 Qué debe traer cada día</p>
+          <ul className="mt-2 space-y-1 text-sm">
+            {objetos.map((o) => (
+              <li key={o.id}>• {o.objeto}</li>
+            ))}
+          </ul>
+        </Card>
       )}
 
       {observacionesPorArea.length > 0 && (
