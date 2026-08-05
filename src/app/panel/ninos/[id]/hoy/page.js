@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Button, Cabecera, Field, Input, Mensaje, Textarea } from '@/components/ui'
 import { SelectorPastilla as OpcionPill } from '@/components/SelectorPastilla'
-import { registrarEntrada, guardarRestoDia, reportarAccidente } from './actions'
+import { registrarEntrada, guardarRestoDia, reportarAccidente, anadirHito, borrarHito } from './actions'
 
 const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
 
@@ -10,6 +10,7 @@ const MENSAJES_ERROR = {
   no_se_pudo_guardar: 'Ha habido un problema al guardar. Inténtalo de nuevo.',
   falta_hora: 'Indica la hora de entrada.',
   falta_descripcion_accidente: 'Describe qué ha pasado antes de enviar.',
+  falta_hito: 'Indica la hora y qué ha pasado.',
 }
 
 export default async function RegistrarHoyPage({ params, searchParams }) {
@@ -34,7 +35,7 @@ export default async function RegistrarHoyPage({ params, searchParams }) {
   const horaActual = ahora.toTimeString().slice(0, 5)
   const diaSemana = DIAS_SEMANA[ahora.getDay()]
 
-  const [{ data: registro }, { data: asistencia }, { data: horario }] = await Promise.all([
+  const [{ data: registro }, { data: asistencia }, { data: horario }, { data: hitos }] = await Promise.all([
     supabase
       .from('registros_diarios')
       .select('*')
@@ -53,6 +54,12 @@ export default async function RegistrarHoyPage({ params, searchParams }) {
       .eq('cuenta_id', nino.cuenta_id)
       .eq('dia_semana', diaSemana)
       .or(nino.aula ? `aula.eq.${nino.aula},aula.is.null` : 'aula.is.null')
+      .order('hora'),
+    supabase
+      .from('hitos_dia')
+      .select('id, hora, descripcion')
+      .eq('nino_id', id)
+      .eq('fecha', fecha)
       .order('hora'),
   ])
 
@@ -132,6 +139,46 @@ export default async function RegistrarHoyPage({ params, searchParams }) {
             </Button>
             <Mensaje tipo="error">{MENSAJES_ERROR[error]}</Mensaje>
           </form>
+
+          <div className="mb-6 rounded-2xl border border-border p-4">
+            <h2 className="text-sm font-medium">🕐 Línea temporal de hoy (opcional)</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Momentos sueltos con hora exacta, además del resumen de abajo — solo si te apetece
+              anotarlos.
+            </p>
+
+            {hitos && hitos.length > 0 && (
+              <ul className="mt-3 space-y-1.5">
+                {hitos.map((h) => (
+                  <li key={h.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span>
+                      <span className="font-medium">{h.hora.slice(0, 5)}</span> — {h.descripcion}
+                    </span>
+                    <form action={borrarHito}>
+                      <input type="hidden" name="id" value={h.id} />
+                      <input type="hidden" name="nino_id" value={nino.id} />
+                      <button type="submit" className="text-xs text-muted-foreground underline">
+                        Quitar
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <form action={anadirHito} className="mt-3 flex gap-2">
+              <input type="hidden" name="nino_id" value={nino.id} />
+              <input type="hidden" name="fecha" value={fecha} />
+              <div className="w-28">
+                <Input type="time" name="hora" defaultValue={horaActual} required />
+              </div>
+              <Input name="descripcion" placeholder="Ej: Desayuno" className="flex-1" />
+              <Button type="submit" variant="secondary">
+                Añadir
+              </Button>
+            </form>
+            <Mensaje tipo="error">{MENSAJES_ERROR[error]}</Mensaje>
+          </div>
 
           {/* Paso 2: el resto del dia (como ha ido) + la salida, que se
               rellena cuando lo recogen — no antes. */}

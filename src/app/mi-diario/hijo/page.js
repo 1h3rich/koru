@@ -67,6 +67,18 @@ export default async function MiHijoPage({ searchParams }) {
       .order('fecha'),
   ])
 
+  const { data: hitos } = await supabase
+    .from('hitos_dia')
+    .select('id, fecha, hora, descripcion')
+    .eq('nino_id', nino.id)
+    .order('fecha', { ascending: false })
+    .order('hora')
+  const hitosPorFecha = new Map()
+  for (const h of hitos ?? []) {
+    if (!hitosPorFecha.has(h.fecha)) hitosPorFecha.set(h.fecha, [])
+    hitosPorFecha.get(h.fecha).push(h)
+  }
+
   const observacionesPorArea = AREAS.map((area) => ({
     area,
     items: (observaciones ?? []).filter((o) => o.area === area),
@@ -168,6 +180,20 @@ export default async function MiHijoPage({ searchParams }) {
                         🩹
                       </span>
                       <span>{r.accidente_descripcion}</span>
+                    </div>
+                  )}
+                  {hitosPorFecha.get(r.fecha)?.length > 0 && (
+                    <div className="rounded-2xl bg-muted p-2">
+                      <p className="mb-1 text-xs font-medium text-muted-foreground">
+                        🕐 Línea temporal
+                      </p>
+                      <ul className="space-y-0.5 text-sm">
+                        {hitosPorFecha.get(r.fecha).map((h) => (
+                          <li key={h.id}>
+                            <span className="font-medium">{h.hora.slice(0, 5)}</span> — {h.descripcion}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
                   {r.comida && (

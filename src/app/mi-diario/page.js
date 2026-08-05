@@ -69,6 +69,13 @@ export default async function InicioPadrePage({ searchParams }) {
     supabase.from('avisos_confirmaciones').select('aviso_id').eq('nino_id', nino.id),
   ])
 
+  const { data: hitos } = await supabase
+    .from('hitos_dia')
+    .select('id, hora, descripcion')
+    .eq('nino_id', nino.id)
+    .eq('fecha', fecha)
+    .order('hora')
+
   const confirmados = new Set((confirmaciones ?? []).map((c) => c.aviso_id))
 
   const fotoUrl = registro?.foto_url ? await urlFirmadaFoto(supabase, registro.foto_url) : null
@@ -204,6 +211,20 @@ export default async function InicioPadrePage({ searchParams }) {
             {asistencia.hora_salida &&
               `Salida ${asistencia.hora_salida.slice(0, 5)}${asistencia.quien_recoge ? ` · ${asistencia.quien_recoge}` : ''}`}
           </p>
+        </Card>
+      )}
+
+      {hitos && hitos.length > 0 && (
+        <Card className="mt-4">
+          <p className="text-sm font-medium text-muted-foreground">🕐 Línea temporal de hoy</p>
+          <ol className="mt-2 space-y-1.5 border-l-2 border-border pl-4">
+            {hitos.map((h) => (
+              <li key={h.id} className="relative text-sm">
+                <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-primary" />
+                <span className="font-medium">{h.hora.slice(0, 5)}</span> — {h.descripcion}
+              </li>
+            ))}
+          </ol>
         </Card>
       )}
 
