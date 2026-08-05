@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { avatares } from '@/lib/avatares'
 import { calcularEdad } from '@/lib/edad'
-import { vincularPadre, desvincularPadre } from './actions'
+import { vincularPadre, desvincularPadre, anadirObjeto, borrarObjeto } from './actions'
 import { BotonEnlace, Button, Cabecera, Input, Mensaje } from '@/components/ui'
 import { Confeti } from '@/components/Confeti'
 
@@ -33,6 +33,12 @@ export default async function DetalleNinoPage({ params, searchParams }) {
     .from('nino_padre')
     .select('padre_id, telefono_emergencia')
     .eq('nino_id', id)
+
+  const { data: objetos } = await supabase
+    .from('objetos_personales')
+    .select('id, objeto')
+    .eq('nino_id', id)
+    .order('created_at')
 
   const admin = createAdminClient()
   const padres = await Promise.all(
@@ -98,7 +104,33 @@ export default async function DetalleNinoPage({ params, searchParams }) {
         </div>
       )}
 
-      <h2 className="text-sm font-medium text-muted-foreground">Padres con acceso</h2>
+      <h2 className="text-sm font-medium text-muted-foreground">🎒 Qué debe traer cada día</h2>
+      {objetos && objetos.length > 0 && (
+        <ul className="mt-2 space-y-2">
+          {objetos.map((o) => (
+            <li
+              key={o.id}
+              className="flex items-center justify-between rounded-2xl border border-border px-4 py-2.5"
+            >
+              <span>{o.objeto}</span>
+              <form action={borrarObjeto}>
+                <input type="hidden" name="id" value={o.id} />
+                <input type="hidden" name="nino_id" value={nino.id} />
+                <Button type="submit" variant="ghost">
+                  Quitar
+                </Button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form action={anadirObjeto} className="mt-2 flex gap-2">
+        <input type="hidden" name="nino_id" value={nino.id} />
+        <Input name="objeto" placeholder="Ej: Pañales" />
+        <Button type="submit">Añadir</Button>
+      </form>
+
+      <h2 className="mt-8 text-sm font-medium text-muted-foreground">Padres con acceso</h2>
       {padres.length === 0 ? (
         <p className="mt-2 text-sm text-muted-foreground">
           Todavía no has dado acceso a ningún padre.

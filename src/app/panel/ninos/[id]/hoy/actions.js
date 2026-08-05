@@ -148,6 +148,48 @@ export async function reportarAccidente(formData) {
   redirect(`/panel/ninos/${nino_id}/hoy`)
 }
 
+// Un hito es un momento suelto con hora exacta (desayuno 08:30,
+// juegos 09:10...), ADEMAS del resumen del dia, no en su lugar --
+// el resumen sigue siendo el flujo por defecto de <1 minuto. Sin
+// notificacion propia: no son tan urgentes como un accidente, ya se
+// ven en el resumen del dia o en la propia linea temporal.
+export async function anadirHito(formData) {
+  const nino_id = formData.get('nino_id')?.toString()
+  const fecha = formData.get('fecha')?.toString()
+  const hora = formData.get('hora')?.toString()
+  const descripcion = vacioANulo(formData.get('descripcion'))
+  if (!nino_id || !fecha) {
+    redirect('/panel')
+  }
+  if (!hora || !descripcion) {
+    redirect(`/panel/ninos/${nino_id}/hoy?error=falta_hito`)
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    redirect('/login')
+  }
+
+  const { error } = await supabase
+    .from('hitos_dia')
+    .insert({ nino_id, fecha, hora, descripcion, creado_por: user.id })
+
+  if (error) {
+    redirect(`/panel/ninos/${nino_id}/hoy?error=no_se_pudo_guardar`)
+  }
+
+  redirect(`/panel/ninos/${nino_id}/hoy`)
+}
+
+export async function borrarHito(formData) {
+  const id = formData.get('id')?.toString()
+  const nino_id = formData.get('nino_id')?.toString()
+  const supabase = await createClient()
+  await supabase.from('hitos_dia').delete().eq('id', id)
+  redirect(`/panel/ninos/${nino_id}/hoy`)
+}
+
 // Paso 2 del día: como ha ido (comida/siesta/animo/notas) y la
 // salida, se registra cuando lo recogen — no antes, porque hasta
 // entonces no se sabe como ha ido el dia. Esta pantalla ya muestra

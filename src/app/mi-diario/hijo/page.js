@@ -67,10 +67,28 @@ export default async function MiHijoPage({ searchParams }) {
       .order('fecha'),
   ])
 
+  const { data: hitos } = await supabase
+    .from('hitos_dia')
+    .select('id, fecha, hora, descripcion')
+    .eq('nino_id', nino.id)
+    .order('fecha', { ascending: false })
+    .order('hora')
+  const hitosPorFecha = new Map()
+  for (const h of hitos ?? []) {
+    if (!hitosPorFecha.has(h.fecha)) hitosPorFecha.set(h.fecha, [])
+    hitosPorFecha.get(h.fecha).push(h)
+  }
+
   const observacionesPorArea = AREAS.map((area) => ({
     area,
     items: (observaciones ?? []).filter((o) => o.area === area),
   })).filter((a) => a.items.length > 0)
+
+  const { data: objetos } = await supabase
+    .from('objetos_personales')
+    .select('id, objeto')
+    .eq('nino_id', nino.id)
+    .order('created_at')
 
   const asistenciaPorFecha = new Map((asistencias ?? []).map((a) => [a.fecha, a]))
 
@@ -111,6 +129,17 @@ export default async function MiHijoPage({ searchParams }) {
             </a>
           ))}
         </div>
+      )}
+
+      {objetos && objetos.length > 0 && (
+        <Card className="mt-6">
+          <p className="text-sm font-medium text-muted-foreground">🎒 Qué debe traer cada día</p>
+          <ul className="mt-2 space-y-1 text-sm">
+            {objetos.map((o) => (
+              <li key={o.id}>• {o.objeto}</li>
+            ))}
+          </ul>
+        </Card>
       )}
 
       {observacionesPorArea.length > 0 && (
@@ -168,6 +197,20 @@ export default async function MiHijoPage({ searchParams }) {
                         🩹
                       </span>
                       <span>{r.accidente_descripcion}</span>
+                    </div>
+                  )}
+                  {hitosPorFecha.get(r.fecha)?.length > 0 && (
+                    <div className="rounded-2xl bg-muted p-2">
+                      <p className="mb-1 text-xs font-medium text-muted-foreground">
+                        🕐 Línea temporal
+                      </p>
+                      <ul className="space-y-0.5 text-sm">
+                        {hitosPorFecha.get(r.fecha).map((h) => (
+                          <li key={h.id}>
+                            <span className="font-medium">{h.hora.slice(0, 5)}</span> — {h.descripcion}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
                   {r.comida && (
