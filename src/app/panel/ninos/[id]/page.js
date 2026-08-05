@@ -16,7 +16,7 @@ const MENSAJES_ERROR = {
 
 export default async function DetalleNinoPage({ params, searchParams }) {
   const { id } = await params
-  const { error, guardado } = await searchParams
+  const { error, guardado, creado } = await searchParams
 
   const supabase = await createClient()
   const { data: nino } = await supabase
@@ -57,7 +57,7 @@ export default async function DetalleNinoPage({ params, searchParams }) {
 
   return (
     <main className="mx-auto w-full max-w-2xl px-6 py-10">
-      {guardado && <Confeti />}
+      {(guardado || creado) && <Confeti />}
       <Cabecera
         volver="/panel"
         titulo={
@@ -85,6 +85,12 @@ export default async function DetalleNinoPage({ params, searchParams }) {
       {guardado && (
         <div className="mb-6">
           <Mensaje tipo="exito">¡Registro de hoy guardado! 🎉</Mensaje>
+        </div>
+      )}
+
+      {creado && (
+        <div className="mb-6">
+          <Mensaje tipo="exito">¡{nino.nombre} dado de alta y padre/madre invitado! 🎉</Mensaje>
         </div>
       )}
 

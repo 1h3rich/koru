@@ -7,6 +7,7 @@ const MENSAJES_ERROR = {
   datos_invalidos: 'Rellena el nombre, la inicial del apellido y elige un avatar.',
   avatar_en_uso: 'Ese avatar ya lo tiene otro niño activo. Elige otro.',
   no_se_pudo_crear: 'Ha habido un problema al crear el niño. Inténtalo de nuevo.',
+  falta_email_padre: 'Añade el email de al menos un padre o madre.',
 }
 
 export default async function NuevoNinoPage({ searchParams }) {
@@ -34,6 +35,14 @@ export default async function NuevoNinoPage({ searchParams }) {
 
         <Field label="Fecha de nacimiento (opcional)">
           <Input type="date" name="fecha_nacimiento" className="max-w-[220px]" />
+        </Field>
+
+        <Field label="Email del padre o madre">
+          <Input type="email" name="email_padre_1" required placeholder="email del padre o madre" />
+        </Field>
+
+        <Field label="Email del otro padre o madre (opcional)">
+          <Input type="email" name="email_padre_2" placeholder="email del otro padre o madre" />
         </Field>
 
         <div>
