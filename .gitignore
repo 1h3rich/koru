@@ -41,6 +41,10 @@ yarn-error.log*
 /notas
 /auditoria-calidad
 
+# documentos personales (facturas, pedidos...) no deben acabar en
+# public/ (se sirve directamente) ni en el repo por descuido
+public/**/*.pdf
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
