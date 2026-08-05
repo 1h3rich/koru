@@ -57,7 +57,7 @@ export function Chat({ ninoId, usuarioId, cuentaId, mensajesIniciales, accion })
                 <span className="mb-0.5 px-1 text-xs text-muted-foreground">{etiqueta}</span>
                 <div
                   className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
-                    esCuidadora
+                    esMio
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted text-foreground'
                   }`}
