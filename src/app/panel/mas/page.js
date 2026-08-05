@@ -5,14 +5,18 @@ import { Button, Field, Input, Mensaje } from '@/components/ui'
 import { NavInferiorCuidadora } from '@/components/NavInferiorCuidadora'
 import { actualizarNombreEducador } from './actions'
 
+const MENSAJES_ERROR = {
+  edad_invalida: 'Escribe una edad válida (entre 16 y 100).',
+}
+
 export default async function MasPage({ searchParams }) {
-  const { guardado } = await searchParams
+  const { guardado, error } = await searchParams
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const { data: cuenta } = await supabase
     .from('cuentas')
-    .select('nombre_educador')
+    .select('nombre_educador, edad')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -32,14 +36,6 @@ export default async function MasPage({ searchParams }) {
           </li>
           <li>
             <Link
-              href="/panel/avisos"
-              className="sombra-suave block rounded-2xl border border-border px-4 py-3 text-sm"
-            >
-              📢 Avisos de aula
-            </Link>
-          </li>
-          <li>
-            <Link
               href="/acerca-de"
               className="sombra-suave block rounded-2xl border border-border px-4 py-3 text-sm"
             >
@@ -49,7 +45,7 @@ export default async function MasPage({ searchParams }) {
         </ul>
 
         <div className="mt-8">
-          <h2 className="text-sm font-medium text-muted-foreground">👩‍🏫 Tu nombre</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">👩‍🏫 Tu nombre y edad</h2>
           <p className="mt-1 text-xs text-muted-foreground">
             Si sois varias educadoras en el mismo centro, esto ayuda a que cada familia sepa
             quién es la persona responsable de su hijo o hija.
@@ -57,6 +53,11 @@ export default async function MasPage({ searchParams }) {
           {guardado && (
             <div className="mt-2">
               <Mensaje tipo="exito">Guardado.</Mensaje>
+            </div>
+          )}
+          {error && (
+            <div className="mt-2">
+              <Mensaje tipo="error">{MENSAJES_ERROR[error]}</Mensaje>
             </div>
           )}
           <form action={actualizarNombreEducador} className="mt-3 flex gap-2">
@@ -67,6 +68,11 @@ export default async function MasPage({ searchParams }) {
                 placeholder="Ej: Marta"
               />
             </Field>
+            <div className="w-24">
+              <Field label="Edad">
+                <Input type="number" name="edad" min={16} max={100} defaultValue={cuenta?.edad ?? ''} />
+              </Field>
+            </div>
             <Button type="submit" variant="secondary" className="mt-6 h-11">
               Guardar
             </Button>

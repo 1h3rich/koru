@@ -15,15 +15,22 @@ export async function crearCuenta(formData) {
 
   const nombre_negocio = formData.get('nombre_negocio')?.toString().trim()
   const tipo = formData.get('tipo')?.toString()
+  const nombre_educador = formData.get('nombre_educador')?.toString().trim()
+  const edad = Number(formData.get('edad'))
 
-  if (!nombre_negocio || !['guarderia', 'cuidadora'].includes(tipo)) {
+  if (!nombre_negocio || !nombre_educador || !['guarderia', 'cuidadora'].includes(tipo)) {
     redirect('/registro?error=datos_invalidos')
+  }
+  if (!Number.isInteger(edad) || edad < 16 || edad > 100) {
+    redirect('/registro?error=edad_invalida')
   }
 
   const { error } = await supabase.from('cuentas').insert({
     id: user.id,
     nombre_negocio,
     tipo,
+    nombre_educador,
+    edad,
   })
 
   if (error) {

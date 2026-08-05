@@ -11,7 +11,7 @@ export default async function AdminPage() {
   const admin = createAdminClient()
   const { data: cuentas } = await admin
     .from('cuentas')
-    .select('id, nombre_negocio, tipo, aprobada, created_at')
+    .select('id, nombre_negocio, tipo, nombre_educador, edad, aprobada, created_at')
     .order('created_at', { ascending: false })
 
   const cuentasConEmail = await Promise.all(
@@ -75,6 +75,12 @@ export default async function AdminPage() {
                   <p className="text-sm text-muted-foreground">
                     {c.email} · {c.tipo === 'guarderia' ? 'Guardería' : 'Cuidadora individual'}
                   </p>
+                  {c.nombre_educador && (
+                    <p className="text-sm text-muted-foreground">
+                      {c.nombre_educador}
+                      {c.edad ? `, ${c.edad} años` : ''}
+                    </p>
+                  )}
                 </div>
                 <form action={aprobarCuenta}>
                   <input type="hidden" name="cuenta_id" value={c.id} />

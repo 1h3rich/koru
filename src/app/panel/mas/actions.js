@@ -11,8 +11,14 @@ export async function actualizarNombreEducador(formData) {
   }
 
   const nombre_educador = formData.get('nombre_educador')?.toString().trim() || null
+  const edadTexto = formData.get('edad')?.toString()
+  const edad = edadTexto ? Number(edadTexto) : null
 
-  await supabase.from('cuentas').update({ nombre_educador }).eq('id', user.id)
+  if (edad !== null && (!Number.isInteger(edad) || edad < 16 || edad > 100)) {
+    redirect('/panel/mas?error=edad_invalida')
+  }
+
+  await supabase.from('cuentas').update({ nombre_educador, edad }).eq('id', user.id)
 
   redirect('/panel/mas?guardado=1')
 }

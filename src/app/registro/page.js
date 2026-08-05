@@ -2,7 +2,8 @@ import { crearCuenta } from './actions'
 import { Button, Field, Input, Select, Mensaje } from '@/components/ui'
 
 const MENSAJES_ERROR = {
-  datos_invalidos: 'Rellena el nombre y elige un tipo de cuenta.',
+  datos_invalidos: 'Rellena todos los campos y elige un tipo de cuenta.',
+  edad_invalida: 'Escribe una edad válida (entre 16 y 100).',
   no_se_pudo_crear: 'Ha habido un problema al crear tu cuenta. Inténtalo de nuevo.',
 }
 
@@ -29,6 +30,12 @@ export default async function RegistroPage({ searchParams }) {
             <option value="guarderia">Guardería</option>
             <option value="cuidadora">Cuidadora individual</option>
           </Select>
+        </Field>
+        <Field label="Tu nombre (la persona responsable)">
+          <Input name="nombre_educador" required placeholder="Ej: Marta" />
+        </Field>
+        <Field label="Tu edad">
+          <Input type="number" name="edad" required min={16} max={100} className="max-w-[120px]" />
         </Field>
         <Button type="submit" className="w-full">
           Enviar solicitud

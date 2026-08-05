@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 const PESTANAS = [
   { href: '/panel', etiqueta: 'Inicio', icono: '🏠' },
   { href: '/panel/mensajes', etiqueta: 'Mensajes', icono: '💬' },
+  { href: '/panel/avisos', etiqueta: 'Avisos', icono: '📢' },
   { href: '/panel/calendario', etiqueta: 'Calendario', icono: '📅' },
   { href: '/panel/horarios', etiqueta: 'Horario', icono: '🗓️' },
   { href: '/panel/mas', etiqueta: 'Más', icono: '⋯' },
