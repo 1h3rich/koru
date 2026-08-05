@@ -38,6 +38,15 @@ export async function cuidadoraDe(nino_id) {
   return email ? { nombreNino: nino.nombre, email } : null
 }
 
+// El email de la cuidadora/guarderia directamente por cuenta_id (para
+// el chat grupal por aula, donde ya se conoce la cuenta sin pasar
+// por un nino concreto).
+export async function emailDeCuenta(cuenta_id) {
+  const admin = createAdminClient()
+  const { data } = await admin.auth.admin.getUserById(cuenta_id)
+  return data?.user?.email ?? null
+}
+
 // Emails (sin duplicados) de todos los padres vinculados a algún
 // nino de una cuenta+aula. aula=null significa "toda la cuenta", no
 // solo los ninos sin aula asignada -- para avisos generales.
@@ -95,6 +104,22 @@ export async function notificarNuevoMensaje({ nino_id, destinatarios, contenido,
   await Promise.all(
     emails.map((email) =>
       enviarEmail({ to: email, subject: `Mensaje nuevo sobre ${destinatarios.nombreNino}`, html })
+    )
+  )
+}
+
+export async function notificarNuevoMensajeAula({ aula, emails, contenido, urlDestino }) {
+  if (!emails || emails.length === 0) return
+
+  const html = `
+    <p>💬 Mensaje nuevo en el chat de <strong>${aula}</strong>:</p>
+    <p>${contenido}</p>
+    <p><a href="${URL_APP}${urlDestino}">Ver en Koru</a></p>
+  `
+
+  await Promise.all(
+    emails.map((email) =>
+      enviarEmail({ to: email, subject: `Mensaje nuevo en el chat de ${aula}`, html })
     )
   )
 }

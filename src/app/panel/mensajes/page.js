@@ -8,7 +8,7 @@ export default async function MensajesPage() {
 
   const { data: ninos } = await supabase
     .from('ninos')
-    .select('id, nombre, apellido_inicial, avatar_id')
+    .select('id, nombre, apellido_inicial, avatar_id, aula')
     .eq('activo', true)
     .order('nombre')
 
@@ -27,11 +27,33 @@ export default async function MensajesPage() {
     if (!ultimoPorNino.has(m.nino_id)) ultimoPorNino.set(m.nino_id, m)
   }
 
+  const aulas = [...new Set((ninos ?? []).map((n) => n.aula).filter(Boolean))].sort()
+
   return (
     <div className="flex flex-1 flex-col md:flex-col-reverse">
       <main className="mx-auto w-full max-w-2xl flex-1 px-6 py-10 pb-28">
         <h1 className="text-2xl font-semibold">Mensajes</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">Chat privado con cada familia.</p>
+
+        {aulas.length > 0 && (
+          <>
+            <h2 className="mt-6 text-sm font-medium text-muted-foreground">Chats de aula</h2>
+            <ul className="mt-2 space-y-2">
+              {aulas.map((aula) => (
+                <li key={aula}>
+                  <Link
+                    href={`/panel/aulas/${encodeURIComponent(aula)}/mensajes`}
+                    className="sombra-suave flex items-center gap-3 rounded-3xl border border-border bg-background p-4"
+                  >
+                    <span className="text-2xl">📢</span>
+                    <p className="font-medium">{aula}</p>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <h2 className="mt-6 text-sm font-medium text-muted-foreground">Chats privados</h2>
+          </>
+        )}
 
         {!ninos || ninos.length === 0 ? (
           <p className="mt-6 text-sm text-muted-foreground">Todavía no has dado de alta a ningún niño.</p>

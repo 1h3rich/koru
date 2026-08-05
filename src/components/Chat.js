@@ -8,9 +8,14 @@ import { createClient } from '@/lib/supabase/client'
 // normal con Server Action + redirect, igual que el resto de la
 // app: funciona igual sin JS, y tras el redirect el propio servidor
 // ya trae el mensaje enviado en la lista inicial.
-export function Chat({ ninoId, usuarioId, cuentaId, mensajesIniciales, accion }) {
+//
+// Sirve tanto para el chat privado por niño (pasar ninoId) como para
+// el grupal por aula (pasar aula) — la tabla, el canal realtime y el
+// campo oculto del formulario cambian según cuál de los dos llegue.
+export function Chat({ ninoId, aula, usuarioId, cuentaId, mensajesIniciales, accion }) {
   const [mensajes, setMensajes] = useState(mensajesIniciales)
   const finRef = useRef(null)
+  const esGrupal = !ninoId
 
   useEffect(() => {
     setMensajes(mensajesIniciales)
@@ -18,11 +23,13 @@ export function Chat({ ninoId, usuarioId, cuentaId, mensajesIniciales, accion })
 
   useEffect(() => {
     const supabase = createClient()
+    const tabla = esGrupal ? 'mensajes_aula' : 'mensajes'
+    const filtro = esGrupal ? `aula=eq.${aula}` : `nino_id=eq.${ninoId}`
     const canal = supabase
-      .channel(`mensajes-${ninoId}`)
+      .channel(esGrupal ? `mensajes-aula-${aula}` : `mensajes-${ninoId}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'mensajes', filter: `nino_id=eq.${ninoId}` },
+        { event: 'INSERT', schema: 'public', table: tabla, filter: filtro },
         (payload) => {
           setMensajes((actuales) =>
             actuales.some((m) => m.id === payload.new.id) ? actuales : [...actuales, payload.new]
@@ -34,7 +41,7 @@ export function Chat({ ninoId, usuarioId, cuentaId, mensajesIniciales, accion })
     return () => {
       supabase.removeChannel(canal)
     }
-  }, [ninoId])
+  }, [esGrupal, ninoId, aula])
 
   useEffect(() => {
     finRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -72,7 +79,14 @@ export function Chat({ ninoId, usuarioId, cuentaId, mensajesIniciales, accion })
       </div>
 
       <form action={accion} className="flex gap-2 border-t border-border pt-3">
-        <input type="hidden" name="nino_id" value={ninoId} />
+        {esGrupal ? (
+          <>
+            <input type="hidden" name="aula" value={aula} />
+            <input type="hidden" name="cuenta_id" value={cuentaId} />
+          </>
+        ) : (
+          <input type="hidden" name="nino_id" value={ninoId} />
+        )}
         <input
           type="text"
           name="contenido"
