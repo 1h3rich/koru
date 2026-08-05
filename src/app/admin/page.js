@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cerrarSesion } from '@/app/acciones'
 import { Button, Card } from '@/components/ui'
@@ -21,8 +20,8 @@ export default async function AdminPage() {
     })
   )
 
-  // La cuenta de prueba del propio admin (ver "Vista previa" abajo)
-  // no es una cuidadora real que revisar, se excluye de estas listas.
+  // La cuenta de prueba del propio admin no es una cuidadora real que
+  // revisar, se excluye de estas listas.
   const cuentasReales = cuentasConEmail.filter((c) => c.email !== process.env.ADMIN_EMAIL)
   const pendientes = cuentasReales.filter((c) => !c.aprobada)
   const aprobadas = cuentasReales.filter((c) => c.aprobada)
@@ -38,27 +37,10 @@ export default async function AdminPage() {
         </form>
       </div>
 
-      <h2 className="mt-8 text-sm font-medium text-muted-foreground">Vista previa</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Tu propia cuenta también tiene un niño de ejemplo, para ver e interactuar con la app
-        como si fueras cuidador/a o padre — es el mismo niño en los dos casos.
+      <p className="mt-2 text-sm text-muted-foreground">
+        Usa el display flotante de abajo a la derecha para saltar entre las vistas de
+        cuidador/a y padre/madre — tu propia cuenta tiene un niño de ejemplo para ambas.
       </p>
-      <div className="mt-2 grid grid-cols-2 gap-3">
-        <Link
-          href="/panel"
-          className="sombra-suave rounded-3xl border border-border bg-primary-soft p-4 text-primary transition-transform active:scale-[0.98]"
-        >
-          <p className="text-2xl">🧸</p>
-          <p className="mt-1 text-sm font-medium">Ver como cuidador/a</p>
-        </Link>
-        <Link
-          href="/mi-diario"
-          className="sombra-suave rounded-3xl border border-border bg-calendario-soft p-4 text-calendario transition-transform active:scale-[0.98]"
-        >
-          <p className="text-2xl">👶</p>
-          <p className="mt-1 text-sm font-medium">Ver como padre/madre</p>
-        </Link>
-      </div>
 
       <h2 className="mt-8 text-sm font-medium text-muted-foreground">
         Pendientes de aprobar ({pendientes.length})

@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { Manrope } from "next/font/google";
 import { Transicion } from "@/components/Transicion";
 import { AvisoCookies } from "@/components/AvisoCookies";
+import { SelectorVistaAdmin } from "@/components/SelectorVistaAdmin";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -27,6 +28,7 @@ export default async function RootLayout({ children }) {
       <body className="min-h-full flex flex-col font-sans">
         <Transicion>{children}</Transicion>
         <AvisoCookies />
+        <SelectorVistaAdmin />
       </body>
     </html>
   );
