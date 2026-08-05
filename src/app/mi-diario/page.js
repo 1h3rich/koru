@@ -42,7 +42,7 @@ export default async function InicioPadrePage({ searchParams }) {
 
   const { data: cuenta } = await supabase
     .from('cuentas')
-    .select('nombre_negocio')
+    .select('nombre_negocio, nombre_educador')
     .eq('id', nino.cuenta_id)
     .maybeSingle()
 
@@ -94,6 +94,7 @@ export default async function InicioPadrePage({ searchParams }) {
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {cuenta?.nombre_negocio ?? 'Koru'}
+            {cuenta?.nombre_educador && ` · ${cuenta.nombre_educador}`}
           </p>
           <h1 className="mt-0.5 text-xl font-semibold">
             {nombreSaludo ? `¡Hola, ${nombreSaludo}! 👋` : '¡Hola! 👋'}
