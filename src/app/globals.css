@@ -50,7 +50,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-tema="claro"]) {
     --background: #1c1b24;
     --foreground: #f0eef8;
     --muted: #262530;
@@ -73,6 +73,85 @@
     --calendario: #a78bfa;
     --calendario-soft: #2e2a45;
   }
+}
+
+/* Tema forzado manualmente desde /panel/mas o /mi-diario/mas
+   (data-tema en <html>), independiente de si el sistema operativo
+   está en claro u oscuro. */
+:root[data-tema="oscuro"] {
+  --background: #1c1b24;
+  --foreground: #f0eef8;
+  --muted: #262530;
+  --muted-foreground: #a4a1b5;
+  --border: #333140;
+  --danger: #ff6b6b;
+
+  --primary: #a495f8;
+  --primary-foreground: #171325;
+  --primary-soft: #2e2a45;
+
+  --descanso: #7fb8e8;
+  --descanso-soft: #223244;
+  --alimentacion: #6bc7a3;
+  --alimentacion-soft: #1e332c;
+  --actividades: #f0c766;
+  --actividades-soft: #3a3222;
+  --animo: #ef9bc0;
+  --animo-soft: #3a2530;
+  --calendario: #a78bfa;
+  --calendario-soft: #2e2a45;
+}
+
+/* Color de acento alternativo al morado por defecto (cuenta.color_acento,
+   aplicado como data-acento en el wrapper de /panel). Reutiliza el mismo
+   patron claro/automatico-oscuro/forzado-oscuro que --primary. */
+[data-acento="azul"] {
+  --primary: #4f8fe0;
+  --primary-soft: #e6f1fd;
+  --primary-foreground: #ffffff;
+}
+[data-acento="verde"] {
+  --primary: #35a878;
+  --primary-soft: #e3f7ef;
+  --primary-foreground: #ffffff;
+}
+[data-acento="naranja"] {
+  --primary: #d98a1f;
+  --primary-soft: #fdf1e0;
+  --primary-foreground: #2a1c04;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-tema="claro"]) [data-acento="azul"] {
+    --primary: #7fb8e8;
+    --primary-soft: #223244;
+    --primary-foreground: #0f1d2b;
+  }
+  html:not([data-tema="claro"]) [data-acento="verde"] {
+    --primary: #7ed6ae;
+    --primary-soft: #1e332c;
+    --primary-foreground: #0c1f18;
+  }
+  html:not([data-tema="claro"]) [data-acento="naranja"] {
+    --primary: #f0c766;
+    --primary-soft: #3a3222;
+    --primary-foreground: #241a06;
+  }
+}
+html[data-tema="oscuro"] [data-acento="azul"] {
+  --primary: #7fb8e8;
+  --primary-soft: #223244;
+  --primary-foreground: #0f1d2b;
+}
+html[data-tema="oscuro"] [data-acento="verde"] {
+  --primary: #7ed6ae;
+  --primary-soft: #1e332c;
+  --primary-foreground: #0c1f18;
+}
+html[data-tema="oscuro"] [data-acento="naranja"] {
+  --primary: #f0c766;
+  --primary-soft: #3a3222;
+  --primary-foreground: #241a06;
 }
 
 body {

@@ -21,14 +21,14 @@ export async function crearNino(formData) {
   const nombre = formData.get('nombre')?.toString().trim()
   const apellido_inicial = formData.get('apellido_inicial')?.toString().trim()
   const avatar_id = formData.get('avatar_id')?.toString()
-  const aula = formData.get('aula')?.toString().trim() || null
+  const aula = formData.get('aula')?.toString().trim()
   const fecha_nacimiento = formData.get('fecha_nacimiento')?.toString() || null
   const email_padre_1 = formData.get('email_padre_1')?.toString().trim().toLowerCase()
   const email_padre_2 = formData.get('email_padre_2')?.toString().trim().toLowerCase() || null
 
   const avatarValido = avatares.some((a) => a.id === avatar_id)
 
-  if (!nombre || !apellido_inicial || !avatarValido) {
+  if (!nombre || !apellido_inicial || !aula || !avatarValido) {
     redirect('/panel/ninos/nuevo?error=datos_invalidos')
   }
   if (!email_padre_1) {

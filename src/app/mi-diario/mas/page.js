@@ -2,10 +2,11 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { cerrarSesion } from '@/app/acciones'
 import { Button, Field, Input, Mensaje } from '@/components/ui'
+import { SelectorTema } from '@/components/SelectorTema'
 import { guardarTelefonoEmergencia } from './actions'
 
 export default async function MasPage({ searchParams }) {
-  const { contacto_guardado } = await searchParams
+  const { contacto_guardado, guardado } = await searchParams
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -86,6 +87,16 @@ export default async function MasPage({ searchParams }) {
           </div>
         </div>
       )}
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">🌗 Tema</h2>
+        {guardado && (
+          <div className="mt-2">
+            <Mensaje tipo="exito">Guardado.</Mensaje>
+          </div>
+        )}
+        <SelectorTema destino="/mi-diario/mas" />
+      </div>
 
       <form action={cerrarSesion} className="mt-6">
         <Button variant="secondary" type="submit" className="w-full">

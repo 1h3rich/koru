@@ -22,3 +22,22 @@ export async function actualizarNombreEducador(formData) {
 
   redirect('/panel/mas?guardado=1')
 }
+
+const COLORES_VALIDOS = ['morado', 'azul', 'verde', 'naranja']
+
+export async function actualizarColorAcento(formData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    redirect('/login')
+  }
+
+  const color_acento = formData.get('color_acento')?.toString()
+  if (!COLORES_VALIDOS.includes(color_acento)) {
+    redirect('/panel/mas')
+  }
+
+  await supabase.from('cuentas').update({ color_acento }).eq('id', user.id)
+
+  redirect('/panel/mas?guardado=1')
+}

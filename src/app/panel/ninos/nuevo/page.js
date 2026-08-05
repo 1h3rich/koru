@@ -4,7 +4,7 @@ import { Button, Cabecera, Field, Input, Mensaje } from '@/components/ui'
 import { SelectorAvataresCarrusel } from '@/components/SelectorAvataresCarrusel'
 
 const MENSAJES_ERROR = {
-  datos_invalidos: 'Rellena el nombre, la inicial del apellido y elige un avatar.',
+  datos_invalidos: 'Rellena el nombre, la inicial del apellido, el aula y elige un avatar.',
   avatar_en_uso: 'Ese avatar ya lo tiene otro niño activo. Elige otro.',
   no_se_pudo_crear: 'Ha habido un problema al crear el niño. Inténtalo de nuevo.',
   falta_email_padre: 'Añade el email de al menos un padre o madre.',
@@ -29,8 +29,8 @@ export default async function NuevoNinoPage({ searchParams }) {
           </div>
         </div>
 
-        <Field label="Aula (opcional)">
-          <Input name="aula" />
+        <Field label="Aula">
+          <Input name="aula" required />
         </Field>
 
         <Field label="Fecha de nacimiento (opcional)">
