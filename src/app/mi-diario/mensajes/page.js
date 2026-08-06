@@ -22,7 +22,7 @@ export default async function MensajesPadrePage({ searchParams }) {
 
   const { data: mensajes } = await supabase
     .from('mensajes')
-    .select('id, autor_id, contenido, created_at, leido_en')
+    .select('id, autor_id, contenido, created_at, leido_en, adjunto_url, adjunto_tipo')
     .eq('nino_id', nino.id)
     .order('created_at')
 

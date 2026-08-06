@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { marcarMensajesLeidos } from '@/app/mensajesAcciones'
+import { AdjuntoChat } from '@/components/AdjuntoChat'
 
 // Chat en tiempo real vía Supabase Realtime (solo para recibir
 // mensajes nuevos sin recargar). Enviar sigue siendo un <form>
@@ -92,6 +93,7 @@ export function Chat({ ninoId, aula, usuarioId, cuentaId, mensajesIniciales, acc
                   }`}
                 >
                   {m.contenido}
+                  {m.adjunto_url && <AdjuntoChat ruta={m.adjunto_url} tipo={m.adjunto_tipo} />}
                 </div>
                 {esMio && !esGrupal && (
                   <span className="mt-0.5 px-1 text-xs text-muted-foreground">
@@ -114,10 +116,18 @@ export function Chat({ ninoId, aula, usuarioId, cuentaId, mensajesIniciales, acc
         ) : (
           <input type="hidden" name="nino_id" value={ninoId} />
         )}
+        {!esGrupal && (
+          <label
+            className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border text-lg text-muted-foreground hover:bg-muted"
+            title="Adjuntar foto o vídeo"
+          >
+            📎
+            <input type="file" name="archivo" accept="image/*,video/*" className="hidden" />
+          </label>
+        )}
         <input
           type="text"
           name="contenido"
-          required
           autoComplete="off"
           placeholder="Escribe un mensaje..."
           className="min-h-11 flex-1 rounded-2xl border border-border bg-background px-4 text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-primary"
