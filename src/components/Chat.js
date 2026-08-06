@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { marcarMensajesLeidos } from '@/app/mensajesAcciones'
 
 // Chat en tiempo real vía Supabase Realtime (solo para recibir
 // mensajes nuevos sin recargar). Enviar sigue siendo un <form>
@@ -25,7 +26,7 @@ export function Chat({ ninoId, aula, usuarioId, cuentaId, mensajesIniciales, acc
     const supabase = createClient()
     const tabla = esGrupal ? 'mensajes_aula' : 'mensajes'
     const filtro = esGrupal ? `aula=eq.${aula}` : `nino_id=eq.${ninoId}`
-    const canal = supabase
+    let canal = supabase
       .channel(esGrupal ? `mensajes-aula-${aula}` : `mensajes-${ninoId}`)
       .on(
         'postgres_changes',
@@ -36,12 +37,33 @@ export function Chat({ ninoId, aula, usuarioId, cuentaId, mensajesIniciales, acc
           )
         }
       )
-      .subscribe()
+
+    // El "visto" en tiempo real solo aplica al chat privado — en el
+    // grupal "leído" no es un solo instante (varios destinatarios).
+    if (!esGrupal) {
+      canal = canal.on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: tabla, filter: filtro },
+        (payload) => {
+          setMensajes((actuales) => actuales.map((m) => (m.id === payload.new.id ? payload.new : m)))
+        }
+      )
+    }
+
+    canal.subscribe()
 
     return () => {
       supabase.removeChannel(canal)
     }
   }, [esGrupal, ninoId, aula])
+
+  // Marca como leídos los mensajes del otro lado en cuanto se ven en
+  // pantalla (al abrir el chat, y cada vez que llega uno nuevo).
+  useEffect(() => {
+    if (!esGrupal) {
+      marcarMensajesLeidos(ninoId)
+    }
+  }, [esGrupal, ninoId, mensajes.length])
 
   useEffect(() => {
     finRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -71,6 +93,11 @@ export function Chat({ ninoId, aula, usuarioId, cuentaId, mensajesIniciales, acc
                 >
                   {m.contenido}
                 </div>
+                {esMio && !esGrupal && (
+                  <span className="mt-0.5 px-1 text-xs text-muted-foreground">
+                    {m.leido_en ? '✓✓ Visto' : '✓ Enviado'}
+                  </span>
+                )}
               </div>
             )
           })
