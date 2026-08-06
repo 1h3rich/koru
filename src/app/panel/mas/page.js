@@ -52,6 +52,14 @@ export default async function MasPage({ searchParams }) {
           </li>
           <li>
             <Link
+              href="/panel/informes"
+              className="sombra-suave block rounded-2xl border border-border px-4 py-3 text-sm"
+            >
+              📊 Informes
+            </Link>
+          </li>
+          <li>
+            <Link
               href="/acerca-de"
               className="sombra-suave block rounded-2xl border border-border px-4 py-3 text-sm"
             >
