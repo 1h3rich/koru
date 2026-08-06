@@ -144,7 +144,7 @@ export function CalendarioMes({ eventos, alBorrar, onDiaSeleccionado, diaSelecci
               </p>
               {ev.aula && <p className="text-xs text-muted-foreground">Aula: {ev.aula}</p>}
               {ev.nota && <p className="text-muted-foreground">{ev.nota}</p>}
-              {alBorrar && (
+              {alBorrar && !ev.automatico && (
                 <form action={alBorrar} className="mt-1">
                   <input type="hidden" name="id" value={ev.id} />
                   <button type="submit" className="text-sm text-muted-foreground underline">

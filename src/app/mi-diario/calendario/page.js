@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { CalendarioMes } from '@/components/CalendarioMes'
+import { eventosCumpleanos } from '@/lib/cumpleanos'
 
 export default async function CalendarioPadrePage() {
   const supabase = await createClient()
@@ -15,12 +16,28 @@ export default async function CalendarioPadrePage() {
     )
   }
 
-  const { data: eventos } = await supabase
-    .from('eventos')
-    .select('id, aula, fecha, tipo, titulo, nota')
-    .eq('cuenta_id', nino.cuenta_id)
-    .or(nino.aula ? `aula.eq.${nino.aula},aula.is.null` : 'aula.is.null')
-    .order('fecha')
+  const [{ data: eventos }, { data: companerosAula }] = await Promise.all([
+    supabase
+      .from('eventos')
+      .select('id, aula, fecha, tipo, titulo, nota')
+      .eq('cuenta_id', nino.cuenta_id)
+      .or(nino.aula ? `aula.eq.${nino.aula},aula.is.null` : 'aula.is.null')
+      .order('fecha'),
+    // Cumpleaños de toda el aula, no solo del propio hijo — si un
+    // niño está en un aula, el aula entera "lee" su cumpleaños.
+    nino.aula
+      ? supabase
+          .from('ninos')
+          .select('id, nombre, aula, fecha_nacimiento')
+          .eq('cuenta_id', nino.cuenta_id)
+          .eq('aula', nino.aula)
+          .eq('activo', true)
+      : { data: [] },
+  ])
+
+  const anioActual = new Date().getFullYear()
+  const cumpleanos = eventosCumpleanos(companerosAula ?? [], { desde: anioActual - 1, hasta: anioActual + 2 })
+  const todosLosEventos = [...(eventos ?? []), ...cumpleanos].sort((a, b) => a.fecha.localeCompare(b.fecha))
 
   return (
     <main className="mx-auto w-full max-w-2xl px-6 py-8">
@@ -30,7 +47,7 @@ export default async function CalendarioPadrePage() {
       </p>
 
       <div className="sombra-suave mt-6 rounded-3xl border border-border p-4">
-        <CalendarioMes eventos={eventos ?? []} />
+        <CalendarioMes eventos={todosLosEventos} />
       </div>
     </main>
   )
