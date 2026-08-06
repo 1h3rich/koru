@@ -56,6 +56,7 @@ async function notificarResumenDia(nino_id, registro, hora_salida, quien_recoge)
 
   const lineas = [
     registro.comida && `🍽️ ${ETIQUETA_COMIDA[registro.comida]}`,
+    registro.temperatura && `🌡️ ${registro.temperatura}°C`,
     registro.siesta && `🌙 ${ETIQUETA_SIESTA[registro.siesta]}`,
     registro.estado_animo && `${ETIQUETA_ANIMO[registro.estado_animo]}`,
     registro.actividad && `🎨 ${registro.actividad}`,
@@ -218,12 +219,17 @@ export async function guardarRestoDia(formData) {
     }
   }
 
+  const temperaturaTexto = vacioANulo(formData.get('temperatura'))
+
   const registro = {
     nino_id,
     fecha,
     comida: vacioANulo(formData.get('comida')),
+    cantidad_comida: vacioANulo(formData.get('cantidad_comida')),
     siesta: vacioANulo(formData.get('siesta')),
+    panal_cambiado: formData.get('panal_cambiado') === 'on',
     panal_bano: vacioANulo(formData.get('panal_bano')),
+    temperatura: temperaturaTexto ? Number(temperaturaTexto) : null,
     estado_animo: vacioANulo(formData.get('estado_animo')),
     actividad: vacioANulo(formData.get('actividad')),
     ...(foto_url ? { foto_url } : {}),

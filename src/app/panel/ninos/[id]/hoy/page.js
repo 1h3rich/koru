@@ -205,6 +205,13 @@ export default async function RegistrarHoyPage({ params, searchParams }) {
               <OpcionPill nombre="comida" valor="regular" etiqueta="Regular" seleccionado={registro?.comida} color="alimentacion" />
               <OpcionPill nombre="comida" valor="nada" etiqueta="Nada" seleccionado={registro?.comida} color="alimentacion" />
             </div>
+            <p className="mt-2 mb-1 text-xs font-medium text-muted-foreground">Cantidad</p>
+            <div className="grid grid-cols-4 gap-2">
+              <OpcionPill nombre="cantidad_comida" valor="todo" etiqueta="Todo" seleccionado={registro?.cantidad_comida} color="alimentacion" />
+              <OpcionPill nombre="cantidad_comida" valor="mitad" etiqueta="La mitad" seleccionado={registro?.cantidad_comida} color="alimentacion" />
+              <OpcionPill nombre="cantidad_comida" valor="poco" etiqueta="Poco" seleccionado={registro?.cantidad_comida} color="alimentacion" />
+              <OpcionPill nombre="cantidad_comida" valor="nada" etiqueta="Nada" seleccionado={registro?.cantidad_comida} color="alimentacion" />
+            </div>
           </section>
 
           <section>
@@ -226,8 +233,35 @@ export default async function RegistrarHoyPage({ params, searchParams }) {
             </div>
           </section>
 
-          <Field label="Pañal / baño (opcional)">
-            <Input name="panal_bano" defaultValue={registro?.panal_bano ?? ''} placeholder="Ej: 2 cambios, bañito a las 16:00" />
+          <section>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="panal_cambiado"
+                defaultChecked={registro?.panal_cambiado ?? false}
+                className="h-5 w-5 rounded-md border-border"
+              />
+              🧷 Se ha cambiado el pañal / ha ido al baño
+            </label>
+            <Input
+              name="panal_bano"
+              defaultValue={registro?.panal_bano ?? ''}
+              placeholder="Notas (opcional): ej. 2 cambios, bañito a las 16:00"
+              className="mt-2"
+            />
+          </section>
+
+          <Field label="🌡️ Temperatura en °C (opcional, solo si está enfermo)">
+            <Input
+              type="number"
+              step="0.1"
+              min="30"
+              max="43"
+              name="temperatura"
+              defaultValue={registro?.temperatura ?? ''}
+              placeholder="Ej: 37.5"
+              className="max-w-[140px]"
+            />
           </Field>
 
           <Field label="✏️ Resume lo que han hecho los pequeños diablillos, en dos líneas (opcional)">

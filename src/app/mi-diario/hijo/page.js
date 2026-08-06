@@ -14,6 +14,7 @@ import {
 } from './actions'
 
 const ETIQUETA_COMIDA = { bien: 'Comió bien', regular: 'Comió regular', nada: 'No comió' }
+const ETIQUETA_CANTIDAD = { todo: 'todo', mitad: 'la mitad', poco: 'poco', nada: 'nada' }
 const ETIQUETA_SIESTA = { bien: 'Durmió bien', poco: 'Durmió poco', nada: 'No durmió' }
 const EMOJI_ANIMO = { contento: '😊', tranquilo: '😌', inquieto: '😕', triste: '😢' }
 const ETIQUETA_ANIMO = { contento: 'Feliz', tranquilo: 'Tranquilo', inquieto: 'Inquieto', triste: 'Triste' }
@@ -375,7 +376,18 @@ export default async function MiHijoPage({ searchParams }) {
                       <span className="flex h-8 w-8 items-center justify-center rounded-full bg-alimentacion-soft">
                         🍽️
                       </span>
-                      <span>{ETIQUETA_COMIDA[r.comida]}</span>
+                      <span>
+                        {ETIQUETA_COMIDA[r.comida]}
+                        {r.cantidad_comida && ` · ${ETIQUETA_CANTIDAD[r.cantidad_comida]}`}
+                      </span>
+                    </div>
+                  )}
+                  {r.temperatura && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger/10">
+                        🌡️
+                      </span>
+                      <span>{r.temperatura}°C</span>
                     </div>
                   )}
                   {r.actividad && (
@@ -394,12 +406,12 @@ export default async function MiHijoPage({ searchParams }) {
                       <span>{ETIQUETA_SIESTA[r.siesta]}</span>
                     </div>
                   )}
-                  {r.panal_bano && (
+                  {r.panal_cambiado && (
                     <div className="flex items-center gap-2 text-sm">
                       <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
                         🧷
                       </span>
-                      <span>{r.panal_bano}</span>
+                      <span>{r.panal_bano || 'Pañal cambiado'}</span>
                     </div>
                   )}
                   {r.estado_animo && (
