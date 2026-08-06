@@ -30,6 +30,7 @@ export async function enviarMensajeAulaPadre(formData) {
     await notificarNuevoMensajeAula({
       aula,
       emails: email ? [email] : [],
+      ids: [cuenta_id],
       contenido,
       urlDestino: `/panel/aulas/${encodeURIComponent(aula)}/mensajes`,
     })

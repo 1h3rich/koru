@@ -4,6 +4,7 @@ import { cerrarSesion } from '@/app/acciones'
 import { Button, Field, Input, Mensaje } from '@/components/ui'
 import { NavInferiorCuidadora } from '@/components/NavInferiorCuidadora'
 import { SelectorTema } from '@/components/SelectorTema'
+import { BotonNotificacionesPush } from '@/components/BotonNotificacionesPush'
 import { actualizarNombreEducador, actualizarColorAcento } from './actions'
 
 const MENSAJES_ERROR = {
@@ -144,6 +145,16 @@ export default async function MasPage({ searchParams }) {
         <div className="mt-8">
           <h2 className="text-sm font-medium text-muted-foreground">🌗 Tema</h2>
           <SelectorTema destino="/panel/mas" />
+        </div>
+
+        <div className="mt-8">
+          <h2 className="text-sm font-medium text-muted-foreground">🔔 Notificaciones</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Avisos de mensajes y avisos nuevos aunque tengas la app cerrada.
+          </p>
+          <div className="mt-2">
+            <BotonNotificacionesPush vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
+          </div>
         </div>
 
         <form action={cerrarSesion} className="mt-8">

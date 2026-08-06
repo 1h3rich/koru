@@ -25,10 +25,11 @@ export async function enviarMensajeAulaCuidadora(formData) {
   })
 
   if (!error) {
-    const emails = await padresDelAula(user.id, aula)
+    const { emails, ids } = await padresDelAula(user.id, aula)
     await notificarNuevoMensajeAula({
       aula,
       emails,
+      ids,
       contenido,
       urlDestino: `/mi-diario/aula`,
     })

@@ -27,3 +27,23 @@ export async function guardarTema(formData) {
 
   redirect(`${destino}?guardado=1`)
 }
+
+// Guarda la suscripción de notificaciones push del dispositivo
+// actual. Se llama directo desde un componente cliente (no un
+// <form>), por eso recibe el objeto ya serializado en vez de
+// FormData.
+export async function guardarSuscripcionPush(suscripcion) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || !suscripcion?.endpoint) return
+
+  await supabase.from('push_subscriptions').upsert(
+    {
+      user_id: user.id,
+      endpoint: suscripcion.endpoint,
+      p256dh: suscripcion.keys.p256dh,
+      auth: suscripcion.keys.auth,
+    },
+    { onConflict: 'endpoint' }
+  )
+}
