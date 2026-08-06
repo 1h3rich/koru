@@ -50,6 +50,35 @@ export async function pasarListaAula(formData) {
   redirect(`/panel/aulas/${encodeURIComponent(aula)}`)
 }
 
+const ESTADOS_VALIDOS = ['ausente_justificado', 'vacaciones']
+
+// Marca que un niño no viene hoy (ausencia justificada o
+// vacaciones), en vez de dejarlo simplemente sin registrar.
+export async function marcarAusencia(formData) {
+  const aula = formData.get('aula')?.toString()
+  const nino_id = formData.get('nino_id')?.toString()
+  const estado = formData.get('estado')?.toString()
+  const motivo = formData.get('motivo')?.toString().trim() || null
+
+  if (!aula || !nino_id || !ESTADOS_VALIDOS.includes(estado)) {
+    redirect(`/panel/aulas/${encodeURIComponent(aula ?? '')}`)
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    redirect('/login')
+  }
+
+  const fecha = new Date().toISOString().slice(0, 10)
+
+  await supabase
+    .from('asistencia')
+    .upsert({ nino_id, fecha, estado, motivo, creado_por: user.id }, { onConflict: 'nino_id,fecha' })
+
+  redirect(`/panel/aulas/${encodeURIComponent(aula)}`)
+}
+
 // Aplica un mismo valor (comida/siesta/animo) al registro de hoy de
 // todos los niños activos del aula seleccionados. Nunca toca pañal
 // ni temperatura, que son siempre individuales.

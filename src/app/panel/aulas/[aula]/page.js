@@ -3,7 +3,9 @@ import { avatares } from '@/lib/avatares'
 import { BotonEnlace, Button, Cabecera } from '@/components/ui'
 import { SelectorPastilla as OpcionPill } from '@/components/SelectorPastilla'
 import { NavInferiorCuidadora } from '@/components/NavInferiorCuidadora'
-import { pasarListaAula, aplicarColectivoAula } from './actions'
+import { pasarListaAula, aplicarColectivoAula, marcarAusencia } from './actions'
+
+const ETIQUETA_ESTADO = { ausente_justificado: '📋 Ausencia justificada', vacaciones: '🏖️ Vacaciones' }
 
 const CAMPOS = [
   { campo: 'comida', titulo: '🍽 Alimentación', color: 'alimentacion', opciones: [['bien', 'Bien'], ['regular', 'Regular'], ['nada', 'Nada']] },
@@ -37,7 +39,11 @@ export default async function VistaAulaPage({ params }) {
       ? supabase.from('alergias').select('nino_id, alergeno').in('nino_id', ninoIds)
       : { data: [] },
     ninoIds.length > 0
-      ? supabase.from('asistencia').select('nino_id, hora_entrada').eq('fecha', fecha).in('nino_id', ninoIds)
+      ? supabase
+          .from('asistencia')
+          .select('nino_id, hora_entrada, estado, motivo')
+          .eq('fecha', fecha)
+          .in('nino_id', ninoIds)
       : { data: [] },
     ninoIds.length > 0
       ? supabase
@@ -99,7 +105,33 @@ export default async function VistaAulaPage({ params }) {
                       {alergiasNino && alergiasNino.length > 0 && (
                         <p className="text-xs text-danger">🚨 {alergiasNino.join(', ')}</p>
                       )}
+                      {!asistencia?.hora_entrada && asistencia?.estado !== 'presente' && (
+                        <p className="text-xs text-muted-foreground">
+                          {ETIQUETA_ESTADO[asistencia?.estado]}
+                          {asistencia?.motivo && ` — ${asistencia.motivo}`}
+                        </p>
+                      )}
                     </div>
+                    {!asistencia?.hora_entrada && (!asistencia?.estado || asistencia.estado === 'presente') && (
+                      <div className="flex gap-1">
+                        <form action={marcarAusencia}>
+                          <input type="hidden" name="aula" value={aula} />
+                          <input type="hidden" name="nino_id" value={nino.id} />
+                          <input type="hidden" name="estado" value="ausente_justificado" />
+                          <Button type="submit" variant="ghost" className="text-xs">
+                            Ausente
+                          </Button>
+                        </form>
+                        <form action={marcarAusencia}>
+                          <input type="hidden" name="aula" value={aula} />
+                          <input type="hidden" name="nino_id" value={nino.id} />
+                          <input type="hidden" name="estado" value="vacaciones" />
+                          <Button type="submit" variant="ghost" className="text-xs">
+                            Vacaciones
+                          </Button>
+                        </form>
+                      </div>
+                    )}
                     <BotonEnlace href={`/panel/ninos/${nino.id}/hoy`} variant="secondary">
                       Hoy
                     </BotonEnlace>

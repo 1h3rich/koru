@@ -44,12 +44,17 @@ export default async function DetalleNinoPage({ params, searchParams }) {
     .select('padre_id, telefono_emergencia')
     .eq('nino_id', id)
 
+  const fechaLimite = new Date()
+  fechaLimite.setDate(fechaLimite.getDate() - 30)
+  const hace30Dias = fechaLimite.toISOString().slice(0, 10)
+
   const [
     { data: objetos },
     { data: alergias },
     { data: personasAutorizadas },
     { data: documentos },
     { data: incidencias },
+    { data: asistenciaReciente },
   ] = await Promise.all([
     supabase.from('objetos_personales').select('id, objeto').eq('nino_id', id).order('created_at'),
     supabase.from('alergias').select('id, alergeno, notas').eq('nino_id', id).order('created_at'),
@@ -60,7 +65,18 @@ export default async function DetalleNinoPage({ params, searchParams }) {
       .order('created_at'),
     supabase.from('documentos_nino').select('id, nombre, ruta').eq('nino_id', id).order('created_at'),
     supabase.from('incidencias').select('id, fecha, descripcion').eq('nino_id', id).order('fecha', { ascending: false }),
+    supabase.from('asistencia').select('estado, hora_entrada').eq('nino_id', id).gte('fecha', hace30Dias),
   ])
+
+  const estadisticasAsistencia = (asistenciaReciente ?? []).reduce(
+    (acc, a) => {
+      if (a.hora_entrada) acc.presente += 1
+      else if (a.estado === 'vacaciones') acc.vacaciones += 1
+      else if (a.estado === 'ausente_justificado') acc.ausente += 1
+      return acc
+    },
+    { presente: 0, ausente: 0, vacaciones: 0 }
+  )
 
   const documentosConUrl = await Promise.all(
     (documentos ?? []).map(async (d) => ({ ...d, url: await urlFirmadaDocumento(supabase, d.ruta) }))
@@ -162,6 +178,17 @@ export default async function DetalleNinoPage({ params, searchParams }) {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {(estadisticasAsistencia.presente > 0 || estadisticasAsistencia.ausente > 0 || estadisticasAsistencia.vacaciones > 0) && (
+        <div className="mb-6 rounded-2xl border border-border p-4">
+          <p className="text-sm font-medium text-muted-foreground">📊 Asistencia (últimos 30 días)</p>
+          <div className="mt-2 flex gap-4 text-sm">
+            <span>✅ {estadisticasAsistencia.presente} días</span>
+            <span>📋 {estadisticasAsistencia.ausente} ausencias</span>
+            <span>🏖️ {estadisticasAsistencia.vacaciones} vacaciones</span>
+          </div>
         </div>
       )}
 
