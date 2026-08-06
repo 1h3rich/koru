@@ -2,7 +2,16 @@ import { createClient } from '@/lib/supabase/server'
 import { avatares } from '@/lib/avatares'
 import { calcularEdad } from '@/lib/edad'
 import { urlFirmadaFoto } from '@/lib/fotos'
-import { Card } from '@/components/ui'
+import { urlFirmadaDocumento } from '@/lib/documentos'
+import { Button, Card, Field, Input } from '@/components/ui'
+import {
+  crearAlergia,
+  borrarAlergia,
+  crearPersonaAutorizada,
+  borrarPersonaAutorizada,
+  subirDocumentoPadre,
+  borrarDocumentoNino,
+} from './actions'
 
 const ETIQUETA_COMIDA = { bien: 'Comió bien', regular: 'Comió regular', nada: 'No comió' }
 const ETIQUETA_SIESTA = { bien: 'Durmió bien', poco: 'Durmió poco', nada: 'No durmió' }
@@ -84,11 +93,31 @@ export default async function MiHijoPage({ searchParams }) {
     items: (observaciones ?? []).filter((o) => o.area === area),
   })).filter((a) => a.items.length > 0)
 
-  const { data: objetos } = await supabase
-    .from('objetos_personales')
-    .select('id, objeto')
-    .eq('nino_id', nino.id)
-    .order('created_at')
+  const [
+    { data: objetos },
+    { data: alergias },
+    { data: personasAutorizadas },
+    { data: documentos },
+    { data: incidencias },
+  ] = await Promise.all([
+    supabase.from('objetos_personales').select('id, objeto').eq('nino_id', nino.id).order('created_at'),
+    supabase.from('alergias').select('id, alergeno, notas').eq('nino_id', nino.id).order('created_at'),
+    supabase
+      .from('personas_autorizadas')
+      .select('id, nombre, dni, telefono, parentesco')
+      .eq('nino_id', nino.id)
+      .order('created_at'),
+    supabase.from('documentos_nino').select('id, nombre, ruta').eq('nino_id', nino.id).order('created_at'),
+    supabase
+      .from('incidencias')
+      .select('id, fecha, descripcion')
+      .eq('nino_id', nino.id)
+      .order('fecha', { ascending: false }),
+  ])
+
+  const documentosConUrl = await Promise.all(
+    (documentos ?? []).map(async (d) => ({ ...d, url: await urlFirmadaDocumento(supabase, d.ruta) }))
+  )
 
   const asistenciaPorFecha = new Map((asistencias ?? []).map((a) => [a.fecha, a]))
 
@@ -140,6 +169,134 @@ export default async function MiHijoPage({ searchParams }) {
             ))}
           </ul>
         </Card>
+      )}
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">🚨 Alergias</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          La cuidadora las ve para tenerlas en cuenta cada día.
+        </p>
+        {alergias && alergias.length > 0 && (
+          <ul className="mt-2 space-y-2">
+            {alergias.map((a) => (
+              <li
+                key={a.id}
+                className="flex items-center justify-between rounded-2xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm"
+              >
+                <span>
+                  {a.alergeno}
+                  {a.notas && <span className="text-muted-foreground"> — {a.notas}</span>}
+                </span>
+                <form action={borrarAlergia}>
+                  <input type="hidden" name="id" value={a.id} />
+                  <input type="hidden" name="nino_id" value={nino.id} />
+                  <Button type="submit" variant="ghost">
+                    Quitar
+                  </Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={crearAlergia} className="mt-2 flex gap-2">
+          <input type="hidden" name="nino_id" value={nino.id} />
+          <Input name="alergeno" required placeholder="Ej: Frutos secos" className="flex-1" />
+          <Input name="notas" placeholder="Notas (opcional)" className="flex-1" />
+          <Button type="submit">Añadir</Button>
+        </form>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">🪪 Personas autorizadas a recoger</h2>
+        {personasAutorizadas && personasAutorizadas.length > 0 && (
+          <ul className="mt-2 space-y-2">
+            {personasAutorizadas.map((p) => (
+              <li
+                key={p.id}
+                className="flex items-center justify-between rounded-2xl border border-border px-4 py-2.5 text-sm"
+              >
+                <span>
+                  {p.nombre}
+                  {p.parentesco && <span className="text-muted-foreground"> ({p.parentesco})</span>}
+                  {p.telefono && <span className="text-muted-foreground"> · {p.telefono}</span>}
+                </span>
+                <form action={borrarPersonaAutorizada}>
+                  <input type="hidden" name="id" value={p.id} />
+                  <input type="hidden" name="nino_id" value={nino.id} />
+                  <Button type="submit" variant="ghost">
+                    Quitar
+                  </Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={crearPersonaAutorizada} className="mt-2 space-y-2 rounded-2xl border border-border p-3">
+          <input type="hidden" name="nino_id" value={nino.id} />
+          <div className="flex gap-2">
+            <Input name="nombre" required placeholder="Nombre" className="flex-1" />
+            <Input name="parentesco" placeholder="Parentesco" className="flex-1" />
+          </div>
+          <div className="flex gap-2">
+            <Input name="dni" placeholder="DNI (opcional)" className="flex-1" />
+            <Input name="telefono" placeholder="Teléfono (opcional)" className="flex-1" />
+          </div>
+          <Button type="submit" className="w-full">
+            Añadir
+          </Button>
+        </form>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">📄 Documentos</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">DNI, autorizaciones... visibles para ambos.</p>
+        {documentosConUrl.length > 0 && (
+          <ul className="mt-2 space-y-2">
+            {documentosConUrl.map((d) => (
+              <li
+                key={d.id}
+                className="flex items-center justify-between rounded-2xl border border-border px-4 py-2.5 text-sm"
+              >
+                {d.url ? (
+                  <a href={d.url} target="_blank" rel="noreferrer" className="truncate text-primary underline">
+                    {d.nombre}
+                  </a>
+                ) : (
+                  <span className="truncate">{d.nombre}</span>
+                )}
+                <form action={borrarDocumentoNino}>
+                  <input type="hidden" name="id" value={d.id} />
+                  <input type="hidden" name="ruta" value={d.ruta} />
+                  <input type="hidden" name="nino_id" value={nino.id} />
+                  <Button type="submit" variant="ghost">
+                    Quitar
+                  </Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={subirDocumentoPadre} className="mt-2 flex gap-2">
+          <input type="hidden" name="nino_id" value={nino.id} />
+          <Input type="file" name="archivo" required className="flex-1" />
+          <Button type="submit">Subir</Button>
+        </form>
+      </div>
+
+      {incidencias && incidencias.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-medium text-muted-foreground">🩹 Incidencias</h2>
+          <ul className="mt-2 space-y-2">
+            {incidencias.map((i) => (
+              <li key={i.id} className="rounded-2xl border border-border px-4 py-2.5 text-sm">
+                <p className="text-xs text-muted-foreground">
+                  {new Date(i.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+                </p>
+                <p>{i.descripcion}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {observacionesPorArea.length > 0 && (

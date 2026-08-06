@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { vincularPadreANino } from '@/lib/vincularPadre'
+import { subirDocumento, borrarDocumento } from '@/lib/documentos'
 
 export async function vincularPadre(formData) {
   const nino_id = formData.get('nino_id')?.toString()
@@ -75,6 +76,63 @@ export async function borrarObjeto(formData) {
   const nino_id = formData.get('nino_id')?.toString()
   const supabase = await createClient()
   await supabase.from('objetos_personales').delete().eq('id', id)
+  redirect(`/panel/ninos/${nino_id}`)
+}
+
+export async function crearIncidencia(formData) {
+  const nino_id = formData.get('nino_id')?.toString()
+  const descripcion = formData.get('descripcion')?.toString().trim()
+  if (!nino_id || !descripcion) {
+    redirect(`/panel/ninos/${nino_id}`)
+  }
+
+  const supabase = await createClient()
+  await supabase.from('incidencias').insert({ nino_id, descripcion })
+
+  redirect(`/panel/ninos/${nino_id}`)
+}
+
+export async function borrarIncidencia(formData) {
+  const id = formData.get('id')?.toString()
+  const nino_id = formData.get('nino_id')?.toString()
+  const supabase = await createClient()
+  await supabase.from('incidencias').delete().eq('id', id)
+  redirect(`/panel/ninos/${nino_id}`)
+}
+
+export async function subirDocumentoCuidadora(formData) {
+  const nino_id = formData.get('nino_id')?.toString()
+  const file = formData.get('archivo')
+  if (!nino_id || !file || file.size === 0) {
+    redirect(`/panel/ninos/${nino_id}`)
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    redirect('/login')
+  }
+
+  const ruta = await subirDocumento(supabase, nino_id, file)
+  await supabase.from('documentos_nino').insert({
+    nino_id,
+    nombre: file.name,
+    ruta,
+    autor_id: user.id,
+  })
+
+  redirect(`/panel/ninos/${nino_id}`)
+}
+
+export async function borrarDocumentoNinoCuidadora(formData) {
+  const id = formData.get('id')?.toString()
+  const ruta = formData.get('ruta')?.toString()
+  const nino_id = formData.get('nino_id')?.toString()
+
+  const supabase = await createClient()
+  await supabase.from('documentos_nino').delete().eq('id', id)
+  await borrarDocumento(supabase, ruta)
+
   redirect(`/panel/ninos/${nino_id}`)
 }
 

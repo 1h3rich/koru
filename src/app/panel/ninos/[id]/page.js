@@ -3,7 +3,17 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { avatares } from '@/lib/avatares'
 import { calcularEdad } from '@/lib/edad'
-import { vincularPadre, desvincularPadre, anadirObjeto, borrarObjeto } from './actions'
+import {
+  vincularPadre,
+  desvincularPadre,
+  anadirObjeto,
+  borrarObjeto,
+  crearIncidencia,
+  borrarIncidencia,
+  subirDocumentoCuidadora,
+  borrarDocumentoNinoCuidadora,
+} from './actions'
+import { urlFirmadaDocumento } from '@/lib/documentos'
 import { BotonEnlace, Button, Cabecera, Input, Mensaje } from '@/components/ui'
 import { Confeti } from '@/components/Confeti'
 
@@ -34,11 +44,27 @@ export default async function DetalleNinoPage({ params, searchParams }) {
     .select('padre_id, telefono_emergencia')
     .eq('nino_id', id)
 
-  const { data: objetos } = await supabase
-    .from('objetos_personales')
-    .select('id, objeto')
-    .eq('nino_id', id)
-    .order('created_at')
+  const [
+    { data: objetos },
+    { data: alergias },
+    { data: personasAutorizadas },
+    { data: documentos },
+    { data: incidencias },
+  ] = await Promise.all([
+    supabase.from('objetos_personales').select('id, objeto').eq('nino_id', id).order('created_at'),
+    supabase.from('alergias').select('id, alergeno, notas').eq('nino_id', id).order('created_at'),
+    supabase
+      .from('personas_autorizadas')
+      .select('id, nombre, dni, telefono, parentesco')
+      .eq('nino_id', id)
+      .order('created_at'),
+    supabase.from('documentos_nino').select('id, nombre, ruta').eq('nino_id', id).order('created_at'),
+    supabase.from('incidencias').select('id, fecha, descripcion').eq('nino_id', id).order('fecha', { ascending: false }),
+  ])
+
+  const documentosConUrl = await Promise.all(
+    (documentos ?? []).map(async (d) => ({ ...d, url: await urlFirmadaDocumento(supabase, d.ruta) }))
+  )
 
   const admin = createAdminClient()
   const padres = await Promise.all(
@@ -110,6 +136,35 @@ export default async function DetalleNinoPage({ params, searchParams }) {
         </div>
       )}
 
+      {alergias && alergias.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-danger bg-danger/10 p-4">
+          <p className="text-sm font-medium text-danger">🚨 Alergias</p>
+          <ul className="mt-1 space-y-0.5 text-sm">
+            {alergias.map((a) => (
+              <li key={a.id}>
+                {a.alergeno}
+                {a.notas && <span className="text-muted-foreground"> — {a.notas}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {personasAutorizadas && personasAutorizadas.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-medium text-muted-foreground">🪪 Personas autorizadas a recoger</h2>
+          <ul className="mt-2 space-y-1 text-sm">
+            {personasAutorizadas.map((p) => (
+              <li key={p.id}>
+                {p.nombre}
+                {p.parentesco && <span className="text-muted-foreground"> ({p.parentesco})</span>}
+                {p.telefono && <span className="text-muted-foreground"> · {p.telefono}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <h2 className="text-sm font-medium text-muted-foreground">🎒 Qué debe traer cada día</h2>
       {objetos && objetos.length > 0 && (
         <ul className="mt-2 space-y-2">
@@ -133,6 +188,70 @@ export default async function DetalleNinoPage({ params, searchParams }) {
       <form action={anadirObjeto} className="mt-2 flex gap-2">
         <input type="hidden" name="nino_id" value={nino.id} />
         <Input name="objeto" placeholder="Ej: Pañales" />
+        <Button type="submit">Añadir</Button>
+      </form>
+
+      <h2 className="mt-8 text-sm font-medium text-muted-foreground">📄 Documentos</h2>
+      {documentosConUrl.length > 0 && (
+        <ul className="mt-2 space-y-2">
+          {documentosConUrl.map((d) => (
+            <li
+              key={d.id}
+              className="flex items-center justify-between rounded-2xl border border-border px-4 py-2.5"
+            >
+              {d.url ? (
+                <a href={d.url} target="_blank" rel="noreferrer" className="truncate text-primary underline">
+                  {d.nombre}
+                </a>
+              ) : (
+                <span className="truncate">{d.nombre}</span>
+              )}
+              <form action={borrarDocumentoNinoCuidadora}>
+                <input type="hidden" name="id" value={d.id} />
+                <input type="hidden" name="ruta" value={d.ruta} />
+                <input type="hidden" name="nino_id" value={nino.id} />
+                <Button type="submit" variant="ghost">
+                  Quitar
+                </Button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form action={subirDocumentoCuidadora} className="mt-2 flex gap-2">
+        <input type="hidden" name="nino_id" value={nino.id} />
+        <Input type="file" name="archivo" required className="flex-1" />
+        <Button type="submit">Subir</Button>
+      </form>
+
+      <h2 className="mt-8 text-sm font-medium text-muted-foreground">🩹 Incidencias</h2>
+      {incidencias && incidencias.length > 0 && (
+        <ul className="mt-2 space-y-2">
+          {incidencias.map((i) => (
+            <li
+              key={i.id}
+              className="flex items-center justify-between rounded-2xl border border-border px-4 py-2.5"
+            >
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(i.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+                </p>
+                <p className="text-sm">{i.descripcion}</p>
+              </div>
+              <form action={borrarIncidencia}>
+                <input type="hidden" name="id" value={i.id} />
+                <input type="hidden" name="nino_id" value={nino.id} />
+                <Button type="submit" variant="ghost">
+                  Quitar
+                </Button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form action={crearIncidencia} className="mt-2 flex gap-2">
+        <input type="hidden" name="nino_id" value={nino.id} />
+        <Input name="descripcion" required placeholder="Describe lo ocurrido" />
         <Button type="submit">Añadir</Button>
       </form>
 
