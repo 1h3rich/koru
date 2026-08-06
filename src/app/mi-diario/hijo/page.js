@@ -105,6 +105,8 @@ export default async function MiHijoPage({ searchParams }) {
     { data: dietasEspeciales },
     { data: contactosEmergencia },
     { data: infoMedica },
+    { data: hitosDesarrolloAlcanzados },
+    { data: evaluaciones },
     { data: personasAutorizadas },
     { data: documentos },
     { data: incidencias },
@@ -114,6 +116,12 @@ export default async function MiHijoPage({ searchParams }) {
     supabase.from('dietas_especiales').select('id, descripcion').eq('nino_id', nino.id).order('created_at'),
     supabase.from('contactos_emergencia').select('id, nombre, telefono, parentesco').eq('nino_id', nino.id).order('created_at'),
     supabase.from('info_medica_nino').select('medico, hospital, seguro').eq('nino_id', nino.id).maybeSingle(),
+    supabase.from('hitos_desarrollo_nino').select('area, hito, fecha_alcanzado').eq('nino_id', nino.id),
+    supabase
+      .from('evaluaciones_desarrollo')
+      .select('id, area, fecha, nivel, notas')
+      .eq('nino_id', nino.id)
+      .order('fecha', { ascending: false }),
     supabase
       .from('personas_autorizadas')
       .select('id, nombre, dni, telefono, parentesco')
@@ -389,6 +397,38 @@ export default async function MiHijoPage({ searchParams }) {
                   {new Date(i.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
                 </p>
                 <p>{i.descripcion}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {hitosDesarrolloAlcanzados && hitosDesarrolloAlcanzados.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-medium text-muted-foreground">✅ Hitos alcanzados</h2>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {hitosDesarrolloAlcanzados.map((h) => (
+              <span
+                key={`${h.area}-${h.hito}`}
+                className="rounded-full border border-primary bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary"
+              >
+                ✅ {h.hito}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {evaluaciones && evaluaciones.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-medium text-muted-foreground">📝 Evaluaciones</h2>
+          <ul className="mt-2 space-y-1.5">
+            {evaluaciones.map((ev) => (
+              <li key={ev.id} className="rounded-2xl bg-muted px-3 py-2 text-sm">
+                {ETIQUETA_AREA[ev.area]} ·{' '}
+                {ev.nivel === 'logrado' ? 'Logrado' : ev.nivel === 'en_proceso' ? 'En proceso' : 'Inicial'} ·{' '}
+                {new Date(ev.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+                {ev.notas && <span className="text-muted-foreground"> — {ev.notas}</span>}
               </li>
             ))}
           </ul>
