@@ -47,6 +47,45 @@ export async function borrarDietaEspecial(formData) {
   redirect(`/mi-diario/hijo?nino=${nino_id}`)
 }
 
+export async function crearContactoEmergencia(formData) {
+  const nino_id = formData.get('nino_id')?.toString()
+  const nombre = formData.get('nombre')?.toString().trim()
+  const telefono = formData.get('telefono')?.toString().trim()
+  const parentesco = formData.get('parentesco')?.toString().trim() || null
+  if (!nino_id || !nombre || !telefono) {
+    redirect(`/mi-diario/hijo?nino=${nino_id}`)
+  }
+
+  const supabase = await createClient()
+  await supabase.from('contactos_emergencia').insert({ nino_id, nombre, telefono, parentesco })
+
+  redirect(`/mi-diario/hijo?nino=${nino_id}`)
+}
+
+export async function borrarContactoEmergencia(formData) {
+  const id = formData.get('id')?.toString()
+  const nino_id = formData.get('nino_id')?.toString()
+  const supabase = await createClient()
+  await supabase.from('contactos_emergencia').delete().eq('id', id)
+  redirect(`/mi-diario/hijo?nino=${nino_id}`)
+}
+
+export async function guardarInfoMedica(formData) {
+  const nino_id = formData.get('nino_id')?.toString()
+  if (!nino_id) {
+    redirect('/mi-diario/hijo')
+  }
+
+  const medico = formData.get('medico')?.toString().trim() || null
+  const hospital = formData.get('hospital')?.toString().trim() || null
+  const seguro = formData.get('seguro')?.toString().trim() || null
+
+  const supabase = await createClient()
+  await supabase.from('info_medica_nino').upsert({ nino_id, medico, hospital, seguro }, { onConflict: 'nino_id' })
+
+  redirect(`/mi-diario/hijo?nino=${nino_id}`)
+}
+
 export async function crearPersonaAutorizada(formData) {
   const nino_id = formData.get('nino_id')?.toString()
   const nombre = formData.get('nombre')?.toString().trim()

@@ -52,6 +52,8 @@ export default async function DetalleNinoPage({ params, searchParams }) {
     { data: objetos },
     { data: alergias },
     { data: dietasEspeciales },
+    { data: contactosEmergencia },
+    { data: infoMedica },
     { data: personasAutorizadas },
     { data: documentos },
     { data: incidencias },
@@ -60,6 +62,8 @@ export default async function DetalleNinoPage({ params, searchParams }) {
     supabase.from('objetos_personales').select('id, objeto').eq('nino_id', id).order('created_at'),
     supabase.from('alergias').select('id, alergeno, notas').eq('nino_id', id).order('created_at'),
     supabase.from('dietas_especiales').select('id, descripcion').eq('nino_id', id).order('created_at'),
+    supabase.from('contactos_emergencia').select('id, nombre, telefono, parentesco').eq('nino_id', id).order('created_at'),
+    supabase.from('info_medica_nino').select('medico, hospital, seguro').eq('nino_id', id).maybeSingle(),
     supabase
       .from('personas_autorizadas')
       .select('id, nombre, dni, telefono, parentesco')
@@ -141,7 +145,7 @@ export default async function DetalleNinoPage({ params, searchParams }) {
         </div>
       )}
 
-      {padres.some((p) => p.telefono_emergencia) && (
+      {(padres.some((p) => p.telefono_emergencia) || (contactosEmergencia && contactosEmergencia.length > 0)) && (
         <div className="mb-6 rounded-2xl border border-danger bg-danger/10 p-4">
           <p className="text-sm font-medium text-danger">📞 Contacto rápido en caso de emergencia</p>
           <ul className="mt-1 space-y-0.5 text-sm">
@@ -149,11 +153,31 @@ export default async function DetalleNinoPage({ params, searchParams }) {
               .filter((p) => p.telefono_emergencia)
               .map((p) => (
                 <li key={p.id}>
-                  {p.telefono_emergencia}{' '}
+                  <a href={`tel:${p.telefono_emergencia}`} className="font-medium underline">
+                    {p.telefono_emergencia}
+                  </a>{' '}
                   <span className="text-muted-foreground">({p.email})</span>
                 </li>
               ))}
+            {(contactosEmergencia ?? []).map((c) => (
+              <li key={c.id}>
+                <a href={`tel:${c.telefono}`} className="font-medium underline">
+                  {c.telefono}
+                </a>{' '}
+                <span className="text-muted-foreground">
+                  ({c.nombre}
+                  {c.parentesco && `, ${c.parentesco}`})
+                </span>
+              </li>
+            ))}
           </ul>
+          {infoMedica && (infoMedica.medico || infoMedica.hospital || infoMedica.seguro) && (
+            <div className="mt-2 space-y-0.5 border-t border-danger/20 pt-2 text-sm">
+              {infoMedica.medico && <p>🩺 {infoMedica.medico}</p>}
+              {infoMedica.hospital && <p>🏥 {infoMedica.hospital}</p>}
+              {infoMedica.seguro && <p>📋 {infoMedica.seguro}</p>}
+            </div>
+          )}
         </div>
       )}
 

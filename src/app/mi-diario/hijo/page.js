@@ -9,6 +9,9 @@ import {
   borrarAlergia,
   crearDietaEspecial,
   borrarDietaEspecial,
+  crearContactoEmergencia,
+  borrarContactoEmergencia,
+  guardarInfoMedica,
   crearPersonaAutorizada,
   borrarPersonaAutorizada,
   subirDocumentoPadre,
@@ -100,6 +103,8 @@ export default async function MiHijoPage({ searchParams }) {
     { data: objetos },
     { data: alergias },
     { data: dietasEspeciales },
+    { data: contactosEmergencia },
+    { data: infoMedica },
     { data: personasAutorizadas },
     { data: documentos },
     { data: incidencias },
@@ -107,6 +112,8 @@ export default async function MiHijoPage({ searchParams }) {
     supabase.from('objetos_personales').select('id, objeto').eq('nino_id', nino.id).order('created_at'),
     supabase.from('alergias').select('id, alergeno, notas').eq('nino_id', nino.id).order('created_at'),
     supabase.from('dietas_especiales').select('id, descripcion').eq('nino_id', nino.id).order('created_at'),
+    supabase.from('contactos_emergencia').select('id, nombre, telefono, parentesco').eq('nino_id', nino.id).order('created_at'),
+    supabase.from('info_medica_nino').select('medico, hospital, seguro').eq('nino_id', nino.id).maybeSingle(),
     supabase
       .from('personas_autorizadas')
       .select('id, nombre, dni, telefono, parentesco')
@@ -236,6 +243,62 @@ export default async function MiHijoPage({ searchParams }) {
           <input type="hidden" name="nino_id" value={nino.id} />
           <Input name="descripcion" required placeholder="Ej: Vegetariano, sin lactosa" className="flex-1" />
           <Button type="submit">Añadir</Button>
+        </form>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">🚑 Contactos de emergencia alternativos</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Además del tuyo (en &quot;Más&quot;) — abuela, vecino, quien pueda venir si no te localizan.
+        </p>
+        {contactosEmergencia && contactosEmergencia.length > 0 && (
+          <ul className="mt-2 space-y-2">
+            {contactosEmergencia.map((c) => (
+              <li
+                key={c.id}
+                className="flex items-center justify-between rounded-2xl border border-border px-4 py-2.5 text-sm"
+              >
+                <span>
+                  {c.nombre}
+                  {c.parentesco && <span className="text-muted-foreground"> ({c.parentesco})</span>}
+                  {' · '}
+                  {c.telefono}
+                </span>
+                <form action={borrarContactoEmergencia}>
+                  <input type="hidden" name="id" value={c.id} />
+                  <input type="hidden" name="nino_id" value={nino.id} />
+                  <Button type="submit" variant="ghost">
+                    Quitar
+                  </Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={crearContactoEmergencia} className="mt-2 space-y-2 rounded-2xl border border-border p-3">
+          <input type="hidden" name="nino_id" value={nino.id} />
+          <div className="flex gap-2">
+            <Input name="nombre" required placeholder="Nombre" className="flex-1" />
+            <Input name="parentesco" placeholder="Parentesco" className="flex-1" />
+          </div>
+          <Input type="tel" name="telefono" required placeholder="Teléfono" />
+          <Button type="submit" className="w-full">
+            Añadir
+          </Button>
+        </form>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">🏥 Médico, hospital y seguro</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">Opcional, para tenerlo a mano en caso de urgencia.</p>
+        <form action={guardarInfoMedica} className="mt-2 space-y-2 rounded-2xl border border-border p-3">
+          <input type="hidden" name="nino_id" value={nino.id} />
+          <Input name="medico" defaultValue={infoMedica?.medico ?? ''} placeholder="Médico / pediatra" />
+          <Input name="hospital" defaultValue={infoMedica?.hospital ?? ''} placeholder="Hospital de referencia" />
+          <Input name="seguro" defaultValue={infoMedica?.seguro ?? ''} placeholder="Seguro médico" />
+          <Button type="submit" variant="secondary" className="w-full">
+            Guardar
+          </Button>
         </form>
       </div>
 
