@@ -28,8 +28,8 @@ export async function crearAviso(formData) {
     redirect('/panel/avisos?error=no_se_pudo_crear')
   }
 
-  const emails = await padresDelAula(user.id, aula)
-  await notificarAvisoAula({ emails, titulo, mensaje, requiereAutorizacion: requiere_autorizacion })
+  const { emails, ids } = await padresDelAula(user.id, aula)
+  await notificarAvisoAula({ emails, ids, titulo, mensaje, requiereAutorizacion: requiere_autorizacion })
 
   redirect('/panel/avisos')
 }

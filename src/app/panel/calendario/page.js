@@ -1,16 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
 import { NavInferiorCuidadora } from '@/components/NavInferiorCuidadora'
 import { PanelCalendario } from '@/components/PanelCalendario'
+import { eventosCumpleanos } from '@/lib/cumpleanos'
 import { crearEvento, borrarEvento } from './actions'
 
 export default async function CalendarioPage({ searchParams }) {
   const { error } = await searchParams
 
   const supabase = await createClient()
-  const { data: eventos } = await supabase
-    .from('eventos')
-    .select('id, aula, fecha, tipo, titulo, nota')
-    .order('fecha')
+  const [{ data: eventos }, { data: ninos }] = await Promise.all([
+    supabase.from('eventos').select('id, aula, fecha, tipo, titulo, nota').order('fecha'),
+    supabase.from('ninos').select('id, nombre, aula, fecha_nacimiento').eq('activo', true),
+  ])
+
+  const anioActual = new Date().getFullYear()
+  const cumpleanos = eventosCumpleanos(ninos ?? [], { desde: anioActual - 1, hasta: anioActual + 2 })
+  const todosLosEventos = [...(eventos ?? []), ...cumpleanos].sort((a, b) => a.fecha.localeCompare(b.fecha))
 
   return (
     <div className="flex flex-1 flex-col md:flex-col-reverse">
@@ -23,7 +28,7 @@ export default async function CalendarioPage({ searchParams }) {
         </div>
 
         <PanelCalendario
-          eventos={eventos ?? []}
+          eventos={todosLosEventos}
           crearEvento={crearEvento}
           borrarEvento={borrarEvento}
           error={error}

@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Chat } from '@/components/Chat'
 import { enviarMensajePadre } from './actions'
@@ -21,13 +22,18 @@ export default async function MensajesPadrePage({ searchParams }) {
 
   const { data: mensajes } = await supabase
     .from('mensajes')
-    .select('id, autor_id, contenido, created_at')
+    .select('id, autor_id, contenido, created_at, leido_en, adjunto_url, adjunto_tipo')
     .eq('nino_id', nino.id)
     .order('created_at')
 
   return (
     <main className="mx-auto flex h-[calc(100vh-1px)] w-full max-w-2xl flex-col px-6 py-6">
-      <h1 className="text-xl font-semibold">💬 {nino.nombre}</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold">💬 {nino.nombre}</h1>
+        <Link href="/mi-diario/aula" className="shrink-0 text-sm text-primary">
+          📢 Chat del aula
+        </Link>
+      </div>
 
       {ninos.length > 1 && (
         <div className="mt-3 flex gap-2 overflow-x-auto">

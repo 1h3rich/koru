@@ -35,6 +35,25 @@ export default async function PanelPage() {
           </p>
         </div>
 
+        {[...new Set((ninos ?? []).map((n) => n.aula).filter(Boolean))].sort().length > 0 && (
+          <>
+            <h2 className="mt-8 text-sm font-medium text-muted-foreground">Aulas</h2>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[...new Set((ninos ?? []).map((n) => n.aula).filter(Boolean))]
+                .sort()
+                .map((aula) => (
+                  <Link
+                    key={aula}
+                    href={`/panel/aulas/${encodeURIComponent(aula)}`}
+                    className="sombra-suave rounded-full border border-border bg-background px-4 py-2 text-sm font-medium"
+                  >
+                    🏫 {aula}
+                  </Link>
+                ))}
+            </div>
+          </>
+        )}
+
         <h2 className="mt-8 text-sm font-medium text-muted-foreground">Niños</h2>
         {!ninos || ninos.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">

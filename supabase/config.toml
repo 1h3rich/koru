@@ -251,10 +251,15 @@ pass = "env(RESEND_API_KEY)"
 admin_email = "notificaciones@koru.onl"
 sender_name = "Koru"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Plantillas con la marca de Koru en vez de las genéricas de Supabase
+# (correo de invitación inicial y de enlace de acceso/login).
+[auth.email.template.invite]
+subject = "Te han dado acceso a Koru"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.magic_link]
+subject = "Tu enlace para entrar en Koru"
+content_path = "./supabase/templates/magic_link.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

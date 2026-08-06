@@ -1,20 +1,32 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { cerrarSesion } from '@/app/acciones'
+import { generarQrDataUrl } from '@/lib/qr'
 import { Button, Field, Input, Mensaje } from '@/components/ui'
-import { guardarTelefonoEmergencia } from './actions'
+import { SelectorTema } from '@/components/SelectorTema'
+import { BotonNotificacionesPush } from '@/components/BotonNotificacionesPush'
+import { guardarTelefonoEmergencia, generarCodigoQr } from './actions'
 
 export default async function MasPage({ searchParams }) {
-  const { contacto_guardado } = await searchParams
+  const { contacto_guardado, guardado } = await searchParams
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: ninos } = await supabase
-    .from('ninos')
-    .select('id, nombre, nino_padre!inner(telefono_emergencia)')
-    .eq('nino_padre.padre_id', user.id)
-    .order('nombre')
+  const [{ data: ninos }, { data: qrToken }] = await Promise.all([
+    supabase
+      .from('ninos')
+      .select('id, nombre, nino_padre!inner(telefono_emergencia)')
+      .eq('nino_padre.padre_id', user.id)
+      .order('nombre'),
+    supabase.from('qr_checkin_tokens').select('token').eq('padre_id', user.id).maybeSingle(),
+  ])
+
+  const qrDataUrl = qrToken
+    ? await generarQrDataUrl(
+        `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/panel/checkin/${qrToken.token}`
+      )
+    : null
 
   return (
     <main className="mx-auto w-full max-w-2xl px-6 py-8">
@@ -27,6 +39,30 @@ export default async function MasPage({ searchParams }) {
             className="sombra-suave block rounded-2xl border border-border px-4 py-3 text-sm"
           >
             🗓️ Horario semanal
+          </Link>
+        </li>
+        <li>
+          <Link
+            href="/mi-diario/facturacion"
+            className="sombra-suave block rounded-2xl border border-border px-4 py-3 text-sm"
+          >
+            💳 Facturación
+          </Link>
+        </li>
+        <li>
+          <Link
+            href="/mi-diario/documentos"
+            className="sombra-suave block rounded-2xl border border-border px-4 py-3 text-sm"
+          >
+            📚 Biblioteca documental
+          </Link>
+        </li>
+        <li>
+          <Link
+            href="/mi-diario/menu"
+            className="sombra-suave block rounded-2xl border border-border px-4 py-3 text-sm"
+          >
+            🍽️ Menú semanal
           </Link>
         </li>
         <li>
@@ -86,6 +122,42 @@ export default async function MasPage({ searchParams }) {
           </div>
         </div>
       )}
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">📷 Código QR de entrada/salida</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Enséñaselo a la cuidadora — al escanearlo con la cámara del móvil marca la entrada o
+          salida de tus niños al instante, sin escribir nada.
+        </p>
+        {qrDataUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={qrDataUrl} alt="Tu código QR de entrada/salida" className="mt-3 rounded-2xl" width={240} height={240} />
+        ) : (
+          <form action={generarCodigoQr} className="mt-3">
+            <Button type="submit">Generar mi código QR</Button>
+          </form>
+        )}
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">🌗 Tema</h2>
+        {guardado && (
+          <div className="mt-2">
+            <Mensaje tipo="exito">Guardado.</Mensaje>
+          </div>
+        )}
+        <SelectorTema destino="/mi-diario/mas" />
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">🔔 Notificaciones</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Avisos de mensajes y avisos nuevos aunque tengas la app cerrada.
+        </p>
+        <div className="mt-2">
+          <BotonNotificacionesPush vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
+        </div>
+      </div>
 
       <form action={cerrarSesion} className="mt-6">
         <Button variant="secondary" type="submit" className="w-full">

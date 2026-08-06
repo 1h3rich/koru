@@ -15,7 +15,7 @@ export default async function PanelLayout({ children }) {
 
   const { data: cuenta } = await supabase
     .from('cuentas')
-    .select('aprobada')
+    .select('aprobada, color_acento')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -27,5 +27,9 @@ export default async function PanelLayout({ children }) {
     redirect('/pendiente')
   }
 
-  return children
+  return (
+    <div data-acento={cuenta.color_acento !== 'morado' ? cuenta.color_acento : undefined} className="contents">
+      {children}
+    </div>
+  )
 }

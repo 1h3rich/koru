@@ -41,8 +41,14 @@ export default async function AcercaDePage({ searchParams }) {
           </li>
           <li>
             🩹 Los accidentes o incidencias del día se registran como eventos puntuales, no como
-            un historial médico permanente. Koru no guarda fichas de salud (alergias,
-            medicación...) ni información de pagos o facturación.
+            un historial médico permanente. Koru guarda datos básicos de salud cuando la familia
+            los añade voluntariamente (alergias, temperatura si el niño está enfermo) para que la
+            cuidadora los tenga a mano — nunca información médica detallada ni un historial clínico.
+          </li>
+          <li>
+            💳 Koru no procesa pagos reales ni guarda datos financieros (tarjetas, cuentas
+            bancarias). La sección de cuotas es solo un registro de estados
+            (&ldquo;pagado&rdquo;/&ldquo;pendiente&rdquo;) que lleva la propia guardería.
           </li>
           <li>🗑️ Cualquier familia puede pedir el borrado de todos sus datos cuando quiera.</li>
         </ul>

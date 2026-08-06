@@ -3,7 +3,17 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { avatares } from '@/lib/avatares'
 import { calcularEdad } from '@/lib/edad'
-import { vincularPadre, desvincularPadre, anadirObjeto, borrarObjeto } from './actions'
+import {
+  vincularPadre,
+  desvincularPadre,
+  anadirObjeto,
+  borrarObjeto,
+  crearIncidencia,
+  borrarIncidencia,
+  subirDocumentoCuidadora,
+  borrarDocumentoNinoCuidadora,
+} from './actions'
+import { urlFirmadaDocumento } from '@/lib/documentos'
 import { BotonEnlace, Button, Cabecera, Input, Mensaje } from '@/components/ui'
 import { Confeti } from '@/components/Confeti'
 
@@ -16,7 +26,7 @@ const MENSAJES_ERROR = {
 
 export default async function DetalleNinoPage({ params, searchParams }) {
   const { id } = await params
-  const { error, guardado } = await searchParams
+  const { error, guardado, creado } = await searchParams
 
   const supabase = await createClient()
   const { data: nino } = await supabase
@@ -34,11 +44,49 @@ export default async function DetalleNinoPage({ params, searchParams }) {
     .select('padre_id, telefono_emergencia')
     .eq('nino_id', id)
 
-  const { data: objetos } = await supabase
-    .from('objetos_personales')
-    .select('id, objeto')
-    .eq('nino_id', id)
-    .order('created_at')
+  const fechaLimite = new Date()
+  fechaLimite.setDate(fechaLimite.getDate() - 30)
+  const hace30Dias = fechaLimite.toISOString().slice(0, 10)
+
+  const [
+    { data: objetos },
+    { data: alergias },
+    { data: dietasEspeciales },
+    { data: contactosEmergencia },
+    { data: infoMedica },
+    { data: personasAutorizadas },
+    { data: documentos },
+    { data: incidencias },
+    { data: asistenciaReciente },
+  ] = await Promise.all([
+    supabase.from('objetos_personales').select('id, objeto').eq('nino_id', id).order('created_at'),
+    supabase.from('alergias').select('id, alergeno, notas').eq('nino_id', id).order('created_at'),
+    supabase.from('dietas_especiales').select('id, descripcion').eq('nino_id', id).order('created_at'),
+    supabase.from('contactos_emergencia').select('id, nombre, telefono, parentesco').eq('nino_id', id).order('created_at'),
+    supabase.from('info_medica_nino').select('medico, hospital, seguro').eq('nino_id', id).maybeSingle(),
+    supabase
+      .from('personas_autorizadas')
+      .select('id, nombre, dni, telefono, parentesco')
+      .eq('nino_id', id)
+      .order('created_at'),
+    supabase.from('documentos_nino').select('id, nombre, ruta').eq('nino_id', id).order('created_at'),
+    supabase.from('incidencias').select('id, fecha, descripcion').eq('nino_id', id).order('fecha', { ascending: false }),
+    supabase.from('asistencia').select('estado, hora_entrada').eq('nino_id', id).gte('fecha', hace30Dias),
+  ])
+
+  const estadisticasAsistencia = (asistenciaReciente ?? []).reduce(
+    (acc, a) => {
+      if (a.hora_entrada) acc.presente += 1
+      else if (a.estado === 'vacaciones') acc.vacaciones += 1
+      else if (a.estado === 'ausente_justificado') acc.ausente += 1
+      return acc
+    },
+    { presente: 0, ausente: 0, vacaciones: 0 }
+  )
+
+  const documentosConUrl = await Promise.all(
+    (documentos ?? []).map(async (d) => ({ ...d, url: await urlFirmadaDocumento(supabase, d.ruta) }))
+  )
 
   const admin = createAdminClient()
   const padres = await Promise.all(
@@ -57,7 +105,7 @@ export default async function DetalleNinoPage({ params, searchParams }) {
 
   return (
     <main className="mx-auto w-full max-w-2xl px-6 py-10">
-      {guardado && <Confeti />}
+      {(guardado || creado) && <Confeti />}
       <Cabecera
         volver="/panel"
         titulo={
@@ -80,6 +128,9 @@ export default async function DetalleNinoPage({ params, searchParams }) {
         <BotonEnlace href={`/panel/ninos/${nino.id}/desarrollo`} variant="secondary">
           📈 Desarrollo
         </BotonEnlace>
+        <BotonEnlace href={`/panel/ninos/${nino.id}/facturacion`} variant="secondary">
+          💳 Facturación
+        </BotonEnlace>
       </div>
 
       {guardado && (
@@ -88,7 +139,13 @@ export default async function DetalleNinoPage({ params, searchParams }) {
         </div>
       )}
 
-      {padres.some((p) => p.telefono_emergencia) && (
+      {creado && (
+        <div className="mb-6">
+          <Mensaje tipo="exito">¡{nino.nombre} dado de alta y padre/madre invitado! 🎉</Mensaje>
+        </div>
+      )}
+
+      {(padres.some((p) => p.telefono_emergencia) || (contactosEmergencia && contactosEmergencia.length > 0)) && (
         <div className="mb-6 rounded-2xl border border-danger bg-danger/10 p-4">
           <p className="text-sm font-medium text-danger">📞 Contacto rápido en caso de emergencia</p>
           <ul className="mt-1 space-y-0.5 text-sm">
@@ -96,11 +153,82 @@ export default async function DetalleNinoPage({ params, searchParams }) {
               .filter((p) => p.telefono_emergencia)
               .map((p) => (
                 <li key={p.id}>
-                  {p.telefono_emergencia}{' '}
+                  <a href={`tel:${p.telefono_emergencia}`} className="font-medium underline">
+                    {p.telefono_emergencia}
+                  </a>{' '}
                   <span className="text-muted-foreground">({p.email})</span>
                 </li>
               ))}
+            {(contactosEmergencia ?? []).map((c) => (
+              <li key={c.id}>
+                <a href={`tel:${c.telefono}`} className="font-medium underline">
+                  {c.telefono}
+                </a>{' '}
+                <span className="text-muted-foreground">
+                  ({c.nombre}
+                  {c.parentesco && `, ${c.parentesco}`})
+                </span>
+              </li>
+            ))}
           </ul>
+          {infoMedica && (infoMedica.medico || infoMedica.hospital || infoMedica.seguro) && (
+            <div className="mt-2 space-y-0.5 border-t border-danger/20 pt-2 text-sm">
+              {infoMedica.medico && <p>🩺 {infoMedica.medico}</p>}
+              {infoMedica.hospital && <p>🏥 {infoMedica.hospital}</p>}
+              {infoMedica.seguro && <p>📋 {infoMedica.seguro}</p>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {alergias && alergias.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-danger bg-danger/10 p-4">
+          <p className="text-sm font-medium text-danger">🚨 Alergias</p>
+          <ul className="mt-1 space-y-0.5 text-sm">
+            {alergias.map((a) => (
+              <li key={a.id}>
+                {a.alergeno}
+                {a.notas && <span className="text-muted-foreground"> — {a.notas}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {dietasEspeciales && dietasEspeciales.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-medium text-muted-foreground">🥗 Dieta especial</h2>
+          <ul className="mt-2 space-y-1 text-sm">
+            {dietasEspeciales.map((d) => (
+              <li key={d.id}>{d.descripcion}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {personasAutorizadas && personasAutorizadas.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-medium text-muted-foreground">🪪 Personas autorizadas a recoger</h2>
+          <ul className="mt-2 space-y-1 text-sm">
+            {personasAutorizadas.map((p) => (
+              <li key={p.id}>
+                {p.nombre}
+                {p.parentesco && <span className="text-muted-foreground"> ({p.parentesco})</span>}
+                {p.telefono && <span className="text-muted-foreground"> · {p.telefono}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {(estadisticasAsistencia.presente > 0 || estadisticasAsistencia.ausente > 0 || estadisticasAsistencia.vacaciones > 0) && (
+        <div className="mb-6 rounded-2xl border border-border p-4">
+          <p className="text-sm font-medium text-muted-foreground">📊 Asistencia (últimos 30 días)</p>
+          <div className="mt-2 flex gap-4 text-sm">
+            <span>✅ {estadisticasAsistencia.presente} días</span>
+            <span>📋 {estadisticasAsistencia.ausente} ausencias</span>
+            <span>🏖️ {estadisticasAsistencia.vacaciones} vacaciones</span>
+          </div>
         </div>
       )}
 
@@ -127,6 +255,70 @@ export default async function DetalleNinoPage({ params, searchParams }) {
       <form action={anadirObjeto} className="mt-2 flex gap-2">
         <input type="hidden" name="nino_id" value={nino.id} />
         <Input name="objeto" placeholder="Ej: Pañales" />
+        <Button type="submit">Añadir</Button>
+      </form>
+
+      <h2 className="mt-8 text-sm font-medium text-muted-foreground">📄 Documentos</h2>
+      {documentosConUrl.length > 0 && (
+        <ul className="mt-2 space-y-2">
+          {documentosConUrl.map((d) => (
+            <li
+              key={d.id}
+              className="flex items-center justify-between rounded-2xl border border-border px-4 py-2.5"
+            >
+              {d.url ? (
+                <a href={d.url} target="_blank" rel="noreferrer" className="truncate text-primary underline">
+                  {d.nombre}
+                </a>
+              ) : (
+                <span className="truncate">{d.nombre}</span>
+              )}
+              <form action={borrarDocumentoNinoCuidadora}>
+                <input type="hidden" name="id" value={d.id} />
+                <input type="hidden" name="ruta" value={d.ruta} />
+                <input type="hidden" name="nino_id" value={nino.id} />
+                <Button type="submit" variant="ghost">
+                  Quitar
+                </Button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form action={subirDocumentoCuidadora} className="mt-2 flex gap-2">
+        <input type="hidden" name="nino_id" value={nino.id} />
+        <Input type="file" name="archivo" required className="flex-1" />
+        <Button type="submit">Subir</Button>
+      </form>
+
+      <h2 className="mt-8 text-sm font-medium text-muted-foreground">🩹 Incidencias</h2>
+      {incidencias && incidencias.length > 0 && (
+        <ul className="mt-2 space-y-2">
+          {incidencias.map((i) => (
+            <li
+              key={i.id}
+              className="flex items-center justify-between rounded-2xl border border-border px-4 py-2.5"
+            >
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(i.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+                </p>
+                <p className="text-sm">{i.descripcion}</p>
+              </div>
+              <form action={borrarIncidencia}>
+                <input type="hidden" name="id" value={i.id} />
+                <input type="hidden" name="nino_id" value={nino.id} />
+                <Button type="submit" variant="ghost">
+                  Quitar
+                </Button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form action={crearIncidencia} className="mt-2 flex gap-2">
+        <input type="hidden" name="nino_id" value={nino.id} />
+        <Input name="descripcion" required placeholder="Describe lo ocurrido" />
         <Button type="submit">Añadir</Button>
       </form>
 

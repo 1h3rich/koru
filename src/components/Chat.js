@@ -2,15 +2,23 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { marcarMensajesLeidos } from '@/app/mensajesAcciones'
+import { AdjuntoChat } from '@/components/AdjuntoChat'
+import { TraducirMensaje } from '@/components/TraducirMensaje'
 
 // Chat en tiempo real vía Supabase Realtime (solo para recibir
 // mensajes nuevos sin recargar). Enviar sigue siendo un <form>
 // normal con Server Action + redirect, igual que el resto de la
 // app: funciona igual sin JS, y tras el redirect el propio servidor
 // ya trae el mensaje enviado en la lista inicial.
-export function Chat({ ninoId, usuarioId, cuentaId, mensajesIniciales, accion }) {
+//
+// Sirve tanto para el chat privado por niño (pasar ninoId) como para
+// el grupal por aula (pasar aula) — la tabla, el canal realtime y el
+// campo oculto del formulario cambian según cuál de los dos llegue.
+export function Chat({ ninoId, aula, usuarioId, cuentaId, mensajesIniciales, accion }) {
   const [mensajes, setMensajes] = useState(mensajesIniciales)
   const finRef = useRef(null)
+  const esGrupal = !ninoId
 
   useEffect(() => {
     setMensajes(mensajesIniciales)
@@ -18,23 +26,46 @@ export function Chat({ ninoId, usuarioId, cuentaId, mensajesIniciales, accion })
 
   useEffect(() => {
     const supabase = createClient()
-    const canal = supabase
-      .channel(`mensajes-${ninoId}`)
+    const tabla = esGrupal ? 'mensajes_aula' : 'mensajes'
+    const filtro = esGrupal ? `aula=eq.${aula}` : `nino_id=eq.${ninoId}`
+    let canal = supabase
+      .channel(esGrupal ? `mensajes-aula-${aula}` : `mensajes-${ninoId}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'mensajes', filter: `nino_id=eq.${ninoId}` },
+        { event: 'INSERT', schema: 'public', table: tabla, filter: filtro },
         (payload) => {
           setMensajes((actuales) =>
             actuales.some((m) => m.id === payload.new.id) ? actuales : [...actuales, payload.new]
           )
         }
       )
-      .subscribe()
+
+    // El "visto" en tiempo real solo aplica al chat privado — en el
+    // grupal "leído" no es un solo instante (varios destinatarios).
+    if (!esGrupal) {
+      canal = canal.on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: tabla, filter: filtro },
+        (payload) => {
+          setMensajes((actuales) => actuales.map((m) => (m.id === payload.new.id ? payload.new : m)))
+        }
+      )
+    }
+
+    canal.subscribe()
 
     return () => {
       supabase.removeChannel(canal)
     }
-  }, [ninoId])
+  }, [esGrupal, ninoId, aula])
+
+  // Marca como leídos los mensajes del otro lado en cuanto se ven en
+  // pantalla (al abrir el chat, y cada vez que llega uno nuevo).
+  useEffect(() => {
+    if (!esGrupal) {
+      marcarMensajesLeidos(ninoId)
+    }
+  }, [esGrupal, ninoId, mensajes.length])
 
   useEffect(() => {
     finRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -57,13 +88,20 @@ export function Chat({ ninoId, usuarioId, cuentaId, mensajesIniciales, accion })
                 <span className="mb-0.5 px-1 text-xs text-muted-foreground">{etiqueta}</span>
                 <div
                   className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
-                    esCuidadora
+                    esMio
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted text-foreground'
                   }`}
                 >
                   {m.contenido}
+                  {m.adjunto_url && <AdjuntoChat ruta={m.adjunto_url} tipo={m.adjunto_tipo} />}
                 </div>
+                {m.contenido && <TraducirMensaje texto={m.contenido} />}
+                {esMio && !esGrupal && (
+                  <span className="mt-0.5 px-1 text-xs text-muted-foreground">
+                    {m.leido_en ? '✓✓ Visto' : '✓ Enviado'}
+                  </span>
+                )}
               </div>
             )
           })
@@ -72,11 +110,26 @@ export function Chat({ ninoId, usuarioId, cuentaId, mensajesIniciales, accion })
       </div>
 
       <form action={accion} className="flex gap-2 border-t border-border pt-3">
-        <input type="hidden" name="nino_id" value={ninoId} />
+        {esGrupal ? (
+          <>
+            <input type="hidden" name="aula" value={aula} />
+            <input type="hidden" name="cuenta_id" value={cuentaId} />
+          </>
+        ) : (
+          <input type="hidden" name="nino_id" value={ninoId} />
+        )}
+        {!esGrupal && (
+          <label
+            className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border text-lg text-muted-foreground hover:bg-muted"
+            title="Adjuntar foto o vídeo"
+          >
+            📎
+            <input type="file" name="archivo" accept="image/*,video/*" className="hidden" />
+          </label>
+        )}
         <input
           type="text"
           name="contenido"
-          required
           autoComplete="off"
           placeholder="Escribe un mensaje..."
           className="min-h-11 flex-1 rounded-2xl border border-border bg-background px-4 text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-primary"

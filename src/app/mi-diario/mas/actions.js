@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { randomUUID } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 
 export async function guardarTelefonoEmergencia(formData) {
@@ -23,4 +24,19 @@ export async function guardarTelefonoEmergencia(formData) {
     .eq('padre_id', user.id)
 
   redirect('/mi-diario/mas?contacto_guardado=1')
+}
+
+export async function generarCodigoQr() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    redirect('/login')
+  }
+
+  await supabase.from('qr_checkin_tokens').upsert(
+    { padre_id: user.id, token: randomUUID() },
+    { onConflict: 'padre_id' }
+  )
+
+  redirect('/mi-diario/mas')
 }

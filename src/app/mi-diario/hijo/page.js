@@ -2,9 +2,24 @@ import { createClient } from '@/lib/supabase/server'
 import { avatares } from '@/lib/avatares'
 import { calcularEdad } from '@/lib/edad'
 import { urlFirmadaFoto } from '@/lib/fotos'
-import { Card } from '@/components/ui'
+import { urlFirmadaDocumento } from '@/lib/documentos'
+import { Button, Card, Field, Input } from '@/components/ui'
+import {
+  crearAlergia,
+  borrarAlergia,
+  crearDietaEspecial,
+  borrarDietaEspecial,
+  crearContactoEmergencia,
+  borrarContactoEmergencia,
+  guardarInfoMedica,
+  crearPersonaAutorizada,
+  borrarPersonaAutorizada,
+  subirDocumentoPadre,
+  borrarDocumentoNino,
+} from './actions'
 
 const ETIQUETA_COMIDA = { bien: 'Comió bien', regular: 'Comió regular', nada: 'No comió' }
+const ETIQUETA_CANTIDAD = { todo: 'todo', mitad: 'la mitad', poco: 'poco', nada: 'nada' }
 const ETIQUETA_SIESTA = { bien: 'Durmió bien', poco: 'Durmió poco', nada: 'No durmió' }
 const EMOJI_ANIMO = { contento: '😊', tranquilo: '😌', inquieto: '😕', triste: '😢' }
 const ETIQUETA_ANIMO = { contento: 'Feliz', tranquilo: 'Tranquilo', inquieto: 'Inquieto', triste: 'Triste' }
@@ -84,11 +99,45 @@ export default async function MiHijoPage({ searchParams }) {
     items: (observaciones ?? []).filter((o) => o.area === area),
   })).filter((a) => a.items.length > 0)
 
-  const { data: objetos } = await supabase
-    .from('objetos_personales')
-    .select('id, objeto')
-    .eq('nino_id', nino.id)
-    .order('created_at')
+  const [
+    { data: objetos },
+    { data: alergias },
+    { data: dietasEspeciales },
+    { data: contactosEmergencia },
+    { data: infoMedica },
+    { data: hitosDesarrolloAlcanzados },
+    { data: evaluaciones },
+    { data: personasAutorizadas },
+    { data: documentos },
+    { data: incidencias },
+  ] = await Promise.all([
+    supabase.from('objetos_personales').select('id, objeto').eq('nino_id', nino.id).order('created_at'),
+    supabase.from('alergias').select('id, alergeno, notas').eq('nino_id', nino.id).order('created_at'),
+    supabase.from('dietas_especiales').select('id, descripcion').eq('nino_id', nino.id).order('created_at'),
+    supabase.from('contactos_emergencia').select('id, nombre, telefono, parentesco').eq('nino_id', nino.id).order('created_at'),
+    supabase.from('info_medica_nino').select('medico, hospital, seguro').eq('nino_id', nino.id).maybeSingle(),
+    supabase.from('hitos_desarrollo_nino').select('area, hito, fecha_alcanzado').eq('nino_id', nino.id),
+    supabase
+      .from('evaluaciones_desarrollo')
+      .select('id, area, fecha, nivel, notas')
+      .eq('nino_id', nino.id)
+      .order('fecha', { ascending: false }),
+    supabase
+      .from('personas_autorizadas')
+      .select('id, nombre, dni, telefono, parentesco')
+      .eq('nino_id', nino.id)
+      .order('created_at'),
+    supabase.from('documentos_nino').select('id, nombre, ruta').eq('nino_id', nino.id).order('created_at'),
+    supabase
+      .from('incidencias')
+      .select('id, fecha, descripcion')
+      .eq('nino_id', nino.id)
+      .order('fecha', { ascending: false }),
+  ])
+
+  const documentosConUrl = await Promise.all(
+    (documentos ?? []).map(async (d) => ({ ...d, url: await urlFirmadaDocumento(supabase, d.ruta) }))
+  )
 
   const asistenciaPorFecha = new Map((asistencias ?? []).map((a) => [a.fecha, a]))
 
@@ -140,6 +189,250 @@ export default async function MiHijoPage({ searchParams }) {
             ))}
           </ul>
         </Card>
+      )}
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">🚨 Alergias</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          La cuidadora las ve para tenerlas en cuenta cada día.
+        </p>
+        {alergias && alergias.length > 0 && (
+          <ul className="mt-2 space-y-2">
+            {alergias.map((a) => (
+              <li
+                key={a.id}
+                className="flex items-center justify-between rounded-2xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm"
+              >
+                <span>
+                  {a.alergeno}
+                  {a.notas && <span className="text-muted-foreground"> — {a.notas}</span>}
+                </span>
+                <form action={borrarAlergia}>
+                  <input type="hidden" name="id" value={a.id} />
+                  <input type="hidden" name="nino_id" value={nino.id} />
+                  <Button type="submit" variant="ghost">
+                    Quitar
+                  </Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={crearAlergia} className="mt-2 flex gap-2">
+          <input type="hidden" name="nino_id" value={nino.id} />
+          <Input name="alergeno" required placeholder="Ej: Frutos secos" className="flex-1" />
+          <Input name="notas" placeholder="Notas (opcional)" className="flex-1" />
+          <Button type="submit">Añadir</Button>
+        </form>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">🥗 Dieta especial</h2>
+        {dietasEspeciales && dietasEspeciales.length > 0 && (
+          <ul className="mt-2 space-y-2">
+            {dietasEspeciales.map((d) => (
+              <li
+                key={d.id}
+                className="flex items-center justify-between rounded-2xl border border-border px-4 py-2.5 text-sm"
+              >
+                <span>{d.descripcion}</span>
+                <form action={borrarDietaEspecial}>
+                  <input type="hidden" name="id" value={d.id} />
+                  <input type="hidden" name="nino_id" value={nino.id} />
+                  <Button type="submit" variant="ghost">
+                    Quitar
+                  </Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={crearDietaEspecial} className="mt-2 flex gap-2">
+          <input type="hidden" name="nino_id" value={nino.id} />
+          <Input name="descripcion" required placeholder="Ej: Vegetariano, sin lactosa" className="flex-1" />
+          <Button type="submit">Añadir</Button>
+        </form>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">🚑 Contactos de emergencia alternativos</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Además del tuyo (en &quot;Más&quot;) — abuela, vecino, quien pueda venir si no te localizan.
+        </p>
+        {contactosEmergencia && contactosEmergencia.length > 0 && (
+          <ul className="mt-2 space-y-2">
+            {contactosEmergencia.map((c) => (
+              <li
+                key={c.id}
+                className="flex items-center justify-between rounded-2xl border border-border px-4 py-2.5 text-sm"
+              >
+                <span>
+                  {c.nombre}
+                  {c.parentesco && <span className="text-muted-foreground"> ({c.parentesco})</span>}
+                  {' · '}
+                  {c.telefono}
+                </span>
+                <form action={borrarContactoEmergencia}>
+                  <input type="hidden" name="id" value={c.id} />
+                  <input type="hidden" name="nino_id" value={nino.id} />
+                  <Button type="submit" variant="ghost">
+                    Quitar
+                  </Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={crearContactoEmergencia} className="mt-2 space-y-2 rounded-2xl border border-border p-3">
+          <input type="hidden" name="nino_id" value={nino.id} />
+          <div className="flex gap-2">
+            <Input name="nombre" required placeholder="Nombre" className="flex-1" />
+            <Input name="parentesco" placeholder="Parentesco" className="flex-1" />
+          </div>
+          <Input type="tel" name="telefono" required placeholder="Teléfono" />
+          <Button type="submit" className="w-full">
+            Añadir
+          </Button>
+        </form>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">🏥 Médico, hospital y seguro</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">Opcional, para tenerlo a mano en caso de urgencia.</p>
+        <form action={guardarInfoMedica} className="mt-2 space-y-2 rounded-2xl border border-border p-3">
+          <input type="hidden" name="nino_id" value={nino.id} />
+          <Input name="medico" defaultValue={infoMedica?.medico ?? ''} placeholder="Médico / pediatra" />
+          <Input name="hospital" defaultValue={infoMedica?.hospital ?? ''} placeholder="Hospital de referencia" />
+          <Input name="seguro" defaultValue={infoMedica?.seguro ?? ''} placeholder="Seguro médico" />
+          <Button type="submit" variant="secondary" className="w-full">
+            Guardar
+          </Button>
+        </form>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">🪪 Personas autorizadas a recoger</h2>
+        {personasAutorizadas && personasAutorizadas.length > 0 && (
+          <ul className="mt-2 space-y-2">
+            {personasAutorizadas.map((p) => (
+              <li
+                key={p.id}
+                className="flex items-center justify-between rounded-2xl border border-border px-4 py-2.5 text-sm"
+              >
+                <span>
+                  {p.nombre}
+                  {p.parentesco && <span className="text-muted-foreground"> ({p.parentesco})</span>}
+                  {p.telefono && <span className="text-muted-foreground"> · {p.telefono}</span>}
+                </span>
+                <form action={borrarPersonaAutorizada}>
+                  <input type="hidden" name="id" value={p.id} />
+                  <input type="hidden" name="nino_id" value={nino.id} />
+                  <Button type="submit" variant="ghost">
+                    Quitar
+                  </Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={crearPersonaAutorizada} className="mt-2 space-y-2 rounded-2xl border border-border p-3">
+          <input type="hidden" name="nino_id" value={nino.id} />
+          <div className="flex gap-2">
+            <Input name="nombre" required placeholder="Nombre" className="flex-1" />
+            <Input name="parentesco" placeholder="Parentesco" className="flex-1" />
+          </div>
+          <div className="flex gap-2">
+            <Input name="dni" placeholder="DNI (opcional)" className="flex-1" />
+            <Input name="telefono" placeholder="Teléfono (opcional)" className="flex-1" />
+          </div>
+          <Button type="submit" className="w-full">
+            Añadir
+          </Button>
+        </form>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">📄 Documentos</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">DNI, autorizaciones... visibles para ambos.</p>
+        {documentosConUrl.length > 0 && (
+          <ul className="mt-2 space-y-2">
+            {documentosConUrl.map((d) => (
+              <li
+                key={d.id}
+                className="flex items-center justify-between rounded-2xl border border-border px-4 py-2.5 text-sm"
+              >
+                {d.url ? (
+                  <a href={d.url} target="_blank" rel="noreferrer" className="truncate text-primary underline">
+                    {d.nombre}
+                  </a>
+                ) : (
+                  <span className="truncate">{d.nombre}</span>
+                )}
+                <form action={borrarDocumentoNino}>
+                  <input type="hidden" name="id" value={d.id} />
+                  <input type="hidden" name="ruta" value={d.ruta} />
+                  <input type="hidden" name="nino_id" value={nino.id} />
+                  <Button type="submit" variant="ghost">
+                    Quitar
+                  </Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={subirDocumentoPadre} className="mt-2 flex gap-2">
+          <input type="hidden" name="nino_id" value={nino.id} />
+          <Input type="file" name="archivo" required className="flex-1" />
+          <Button type="submit">Subir</Button>
+        </form>
+      </div>
+
+      {incidencias && incidencias.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-medium text-muted-foreground">🩹 Incidencias</h2>
+          <ul className="mt-2 space-y-2">
+            {incidencias.map((i) => (
+              <li key={i.id} className="rounded-2xl border border-border px-4 py-2.5 text-sm">
+                <p className="text-xs text-muted-foreground">
+                  {new Date(i.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+                </p>
+                <p>{i.descripcion}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {hitosDesarrolloAlcanzados && hitosDesarrolloAlcanzados.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-medium text-muted-foreground">✅ Hitos alcanzados</h2>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {hitosDesarrolloAlcanzados.map((h) => (
+              <span
+                key={`${h.area}-${h.hito}`}
+                className="rounded-full border border-primary bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary"
+              >
+                ✅ {h.hito}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {evaluaciones && evaluaciones.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-medium text-muted-foreground">📝 Evaluaciones</h2>
+          <ul className="mt-2 space-y-1.5">
+            {evaluaciones.map((ev) => (
+              <li key={ev.id} className="rounded-2xl bg-muted px-3 py-2 text-sm">
+                {ETIQUETA_AREA[ev.area]} ·{' '}
+                {ev.nivel === 'logrado' ? 'Logrado' : ev.nivel === 'en_proceso' ? 'En proceso' : 'Inicial'} ·{' '}
+                {new Date(ev.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+                {ev.notas && <span className="text-muted-foreground"> — {ev.notas}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {observacionesPorArea.length > 0 && (
@@ -218,7 +511,18 @@ export default async function MiHijoPage({ searchParams }) {
                       <span className="flex h-8 w-8 items-center justify-center rounded-full bg-alimentacion-soft">
                         🍽️
                       </span>
-                      <span>{ETIQUETA_COMIDA[r.comida]}</span>
+                      <span>
+                        {ETIQUETA_COMIDA[r.comida]}
+                        {r.cantidad_comida && ` · ${ETIQUETA_CANTIDAD[r.cantidad_comida]}`}
+                      </span>
+                    </div>
+                  )}
+                  {r.temperatura && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger/10">
+                        🌡️
+                      </span>
+                      <span>{r.temperatura}°C</span>
                     </div>
                   )}
                   {r.actividad && (
@@ -237,12 +541,12 @@ export default async function MiHijoPage({ searchParams }) {
                       <span>{ETIQUETA_SIESTA[r.siesta]}</span>
                     </div>
                   )}
-                  {r.panal_bano && (
+                  {r.panal_cambiado && (
                     <div className="flex items-center gap-2 text-sm">
                       <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
                         🧷
                       </span>
-                      <span>{r.panal_bano}</span>
+                      <span>{r.panal_bano || 'Pañal cambiado'}</span>
                     </div>
                   )}
                   {r.estado_animo && (
