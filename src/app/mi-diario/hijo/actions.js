@@ -26,6 +26,27 @@ export async function borrarAlergia(formData) {
   redirect(`/mi-diario/hijo?nino=${nino_id}`)
 }
 
+export async function crearDietaEspecial(formData) {
+  const nino_id = formData.get('nino_id')?.toString()
+  const descripcion = formData.get('descripcion')?.toString().trim()
+  if (!nino_id || !descripcion) {
+    redirect(`/mi-diario/hijo?nino=${nino_id}`)
+  }
+
+  const supabase = await createClient()
+  await supabase.from('dietas_especiales').insert({ nino_id, descripcion })
+
+  redirect(`/mi-diario/hijo?nino=${nino_id}`)
+}
+
+export async function borrarDietaEspecial(formData) {
+  const id = formData.get('id')?.toString()
+  const nino_id = formData.get('nino_id')?.toString()
+  const supabase = await createClient()
+  await supabase.from('dietas_especiales').delete().eq('id', id)
+  redirect(`/mi-diario/hijo?nino=${nino_id}`)
+}
+
 export async function crearPersonaAutorizada(formData) {
   const nino_id = formData.get('nino_id')?.toString()
   const nombre = formData.get('nombre')?.toString().trim()

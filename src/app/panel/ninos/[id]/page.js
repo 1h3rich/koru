@@ -51,6 +51,7 @@ export default async function DetalleNinoPage({ params, searchParams }) {
   const [
     { data: objetos },
     { data: alergias },
+    { data: dietasEspeciales },
     { data: personasAutorizadas },
     { data: documentos },
     { data: incidencias },
@@ -58,6 +59,7 @@ export default async function DetalleNinoPage({ params, searchParams }) {
   ] = await Promise.all([
     supabase.from('objetos_personales').select('id, objeto').eq('nino_id', id).order('created_at'),
     supabase.from('alergias').select('id, alergeno, notas').eq('nino_id', id).order('created_at'),
+    supabase.from('dietas_especiales').select('id, descripcion').eq('nino_id', id).order('created_at'),
     supabase
       .from('personas_autorizadas')
       .select('id, nombre, dni, telefono, parentesco')
@@ -164,6 +166,17 @@ export default async function DetalleNinoPage({ params, searchParams }) {
                 {a.alergeno}
                 {a.notas && <span className="text-muted-foreground"> — {a.notas}</span>}
               </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {dietasEspeciales && dietasEspeciales.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-medium text-muted-foreground">🥗 Dieta especial</h2>
+          <ul className="mt-2 space-y-1 text-sm">
+            {dietasEspeciales.map((d) => (
+              <li key={d.id}>{d.descripcion}</li>
             ))}
           </ul>
         </div>

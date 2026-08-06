@@ -58,6 +58,14 @@ export default async function MasPage({ searchParams }) {
         </li>
         <li>
           <Link
+            href="/mi-diario/menu"
+            className="sombra-suave block rounded-2xl border border-border px-4 py-3 text-sm"
+          >
+            🍽️ Menú semanal
+          </Link>
+        </li>
+        <li>
+          <Link
             href="/acerca-de"
             className="sombra-suave block rounded-2xl border border-border px-4 py-3 text-sm"
           >

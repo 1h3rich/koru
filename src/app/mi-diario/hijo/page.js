@@ -7,6 +7,8 @@ import { Button, Card, Field, Input } from '@/components/ui'
 import {
   crearAlergia,
   borrarAlergia,
+  crearDietaEspecial,
+  borrarDietaEspecial,
   crearPersonaAutorizada,
   borrarPersonaAutorizada,
   subirDocumentoPadre,
@@ -97,12 +99,14 @@ export default async function MiHijoPage({ searchParams }) {
   const [
     { data: objetos },
     { data: alergias },
+    { data: dietasEspeciales },
     { data: personasAutorizadas },
     { data: documentos },
     { data: incidencias },
   ] = await Promise.all([
     supabase.from('objetos_personales').select('id, objeto').eq('nino_id', nino.id).order('created_at'),
     supabase.from('alergias').select('id, alergeno, notas').eq('nino_id', nino.id).order('created_at'),
+    supabase.from('dietas_especiales').select('id, descripcion').eq('nino_id', nino.id).order('created_at'),
     supabase
       .from('personas_autorizadas')
       .select('id, nombre, dni, telefono, parentesco')
@@ -203,6 +207,34 @@ export default async function MiHijoPage({ searchParams }) {
           <input type="hidden" name="nino_id" value={nino.id} />
           <Input name="alergeno" required placeholder="Ej: Frutos secos" className="flex-1" />
           <Input name="notas" placeholder="Notas (opcional)" className="flex-1" />
+          <Button type="submit">Añadir</Button>
+        </form>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">🥗 Dieta especial</h2>
+        {dietasEspeciales && dietasEspeciales.length > 0 && (
+          <ul className="mt-2 space-y-2">
+            {dietasEspeciales.map((d) => (
+              <li
+                key={d.id}
+                className="flex items-center justify-between rounded-2xl border border-border px-4 py-2.5 text-sm"
+              >
+                <span>{d.descripcion}</span>
+                <form action={borrarDietaEspecial}>
+                  <input type="hidden" name="id" value={d.id} />
+                  <input type="hidden" name="nino_id" value={nino.id} />
+                  <Button type="submit" variant="ghost">
+                    Quitar
+                  </Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={crearDietaEspecial} className="mt-2 flex gap-2">
+          <input type="hidden" name="nino_id" value={nino.id} />
+          <Input name="descripcion" required placeholder="Ej: Vegetariano, sin lactosa" className="flex-1" />
           <Button type="submit">Añadir</Button>
         </form>
       </div>
