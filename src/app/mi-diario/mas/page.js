@@ -42,6 +42,14 @@ export default async function MasPage({ searchParams }) {
         </li>
         <li>
           <Link
+            href="/mi-diario/facturacion"
+            className="sombra-suave block rounded-2xl border border-border px-4 py-3 text-sm"
+          >
+            💳 Facturación
+          </Link>
+        </li>
+        <li>
+          <Link
             href="/acerca-de"
             className="sombra-suave block rounded-2xl border border-border px-4 py-3 text-sm"
           >

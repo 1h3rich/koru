@@ -122,6 +122,9 @@ export default async function DetalleNinoPage({ params, searchParams }) {
         <BotonEnlace href={`/panel/ninos/${nino.id}/desarrollo`} variant="secondary">
           📈 Desarrollo
         </BotonEnlace>
+        <BotonEnlace href={`/panel/ninos/${nino.id}/facturacion`} variant="secondary">
+          💳 Facturación
+        </BotonEnlace>
       </div>
 
       {guardado && (
