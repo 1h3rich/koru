@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { marcarMensajesLeidos } from '@/app/mensajesAcciones'
 import { AdjuntoChat } from '@/components/AdjuntoChat'
+import { TraducirMensaje } from '@/components/TraducirMensaje'
 
 // Chat en tiempo real vía Supabase Realtime (solo para recibir
 // mensajes nuevos sin recargar). Enviar sigue siendo un <form>
@@ -95,6 +96,7 @@ export function Chat({ ninoId, aula, usuarioId, cuentaId, mensajesIniciales, acc
                   {m.contenido}
                   {m.adjunto_url && <AdjuntoChat ruta={m.adjunto_url} tipo={m.adjunto_tipo} />}
                 </div>
+                {m.contenido && <TraducirMensaje texto={m.contenido} />}
                 {esMio && !esGrupal && (
                   <span className="mt-0.5 px-1 text-xs text-muted-foreground">
                     {m.leido_en ? '✓✓ Visto' : '✓ Enviado'}

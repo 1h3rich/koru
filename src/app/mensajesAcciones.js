@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { traducirTexto } from '@/lib/traduccion'
 
 // Compartida por ambos lados del chat privado (cuidadora y padre):
 // marca como leídos, con la hora actual, todos los mensajes de esa
@@ -20,4 +21,10 @@ export async function marcarMensajesLeidos(ninoId) {
     .eq('nino_id', ninoId)
     .neq('autor_id', user.id)
     .is('leido_en', null)
+}
+
+// Traduce bajo demanda, sin guardar nada — se llama directo desde
+// Chat.js al pulsar "Traducir" en un mensaje concreto.
+export async function traducirMensaje(texto, idiomaDestino) {
+  return traducirTexto(texto, idiomaDestino)
 }
