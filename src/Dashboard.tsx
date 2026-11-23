@@ -8,7 +8,7 @@ import SettingsPanel from './SettingsPanel'
 import TransactionForm from './TransactionForm'
 import FutureSavingsPanel from './FutureSavingsPanel'
 import CsvImportPanel from './CsvImportPanel'
-import { getLoanOutstanding, getReserveTotals } from './finance'
+import { getAvailableBalance, getLoanOutstanding, getReserveTotals } from './finance'
 import { getPurchaseBatchSources } from './purchaseBatch'
 import type { AppFeedback, FutureSavingsPlan, Loan, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionType } from './types'
 
@@ -37,12 +37,13 @@ interface DashboardProps {
   onSaveLoan: (loan: Loan) => void
   onDeleteLoan: (id: string) => void
   onImportBackup: (data: BackupData) => void
+  onAdjustBalance: (balance: number) => boolean | void
   theme: ThemePreference
   onThemeChange: (theme: ThemePreference) => void
   onLogout: () => void
 }
 
-export default function Dashboard({ transactions, onAdd, transactionDraft, onTransactionDraftChange, onImportCsv, onDelete, onUpdate, reserveMovements, syncStatus, feedback, onAddReserveMovement, onDeleteReserveMovement, onUpdateReserveMovement, loans, futureSavings, onSaveFutureSavings, onSaveLoan, onDeleteLoan, onImportBackup, theme, onThemeChange, onLogout }: DashboardProps) {
+export default function Dashboard({ transactions, onAdd, transactionDraft, onTransactionDraftChange, onImportCsv, onDelete, onUpdate, reserveMovements, syncStatus, feedback, onAddReserveMovement, onDeleteReserveMovement, onUpdateReserveMovement, loans, futureSavings, onSaveFutureSavings, onSaveLoan, onDeleteLoan, onImportBackup, onAdjustBalance, theme, onThemeChange, onLogout }: DashboardProps) {
   const [filter, setFilter] = useState<Filter>('all')
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -52,7 +53,7 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
     const income = transactions.filter((item) => item.type === 'income').reduce((sum, item) => sum + item.amount, 0)
     const expense = transactions.filter((item) => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0)
     const loaned = loans.reduce((sum, loan) => sum + getLoanOutstanding(loan), 0)
-    return { income, expense, loaned, balance: income - expense - loaned }
+    return { income, expense, loaned, balance: getAvailableBalance(transactions, loans) }
   }, [transactions, loans])
 
   const visibleTransactions = useMemo(
@@ -298,7 +299,7 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
         </footer>
       </main>
       {editingTransaction && <TransactionEditor key={editingTransaction.id} transaction={editingTransaction} onSave={onUpdate} onClose={() => setEditingTransaction(null)} />}
-      {settingsOpen && <SettingsPanel theme={theme} onThemeChange={onThemeChange} transactions={transactions} reserveMovements={reserveMovements} loans={loans} onImportBackup={onImportBackup} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsPanel theme={theme} onThemeChange={onThemeChange} currentBalance={totals.balance} onAdjustBalance={onAdjustBalance} transactions={transactions} reserveMovements={reserveMovements} loans={loans} onImportBackup={onImportBackup} onClose={() => setSettingsOpen(false)} />}
       {viewingPhoto && <div className="photo-viewer" role="dialog" aria-modal="true" aria-label="Foto ampliada" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewingPhoto(null) }}><button type="button" onClick={() => setViewingPhoto(null)} aria-label="Cerrar foto"><CloseIcon /></button><img src={viewingPhoto} alt="Foto ampliada de la compra" /></div>}
     </div>
   )

@@ -44,6 +44,7 @@ export interface Transaction {
   description: string
   createdAt: number
   updatedAt?: number
+  balanceAdjustment?: boolean
   reserveMovementId?: string
   receipt?: ReceiptDetails
   photos?: string[]

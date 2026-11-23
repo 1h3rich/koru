@@ -12,7 +12,7 @@ export function validFutureSavingsPlan(plan: unknown): plan is FutureSavingsPlan
 export function calculateFutureSavings(transactions: Transaction[], plan: FutureSavingsPlan, month: string, now = new Date()) {
   if (!validFutureSavingsPlan(plan) || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('Plan de ahorro no válido')
   const cents = (value: number) => Math.round(value * 100)
-  const recorded = transactions.filter((item) => item.date.startsWith(`${month}-`) && Number.isFinite(item.amount) && item.amount >= 0)
+  const recorded = transactions.filter((item) => item.date.startsWith(`${month}-`) && !item.balanceAdjustment && Number.isFinite(item.amount) && item.amount >= 0)
   const incomeCents = plan.incomeOverride === null
     ? recorded.filter((item) => item.type === 'income').reduce((sum, item) => sum + cents(item.amount), 0)
     : cents(plan.incomeOverride)

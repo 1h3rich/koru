@@ -671,6 +671,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .theme-options button small { color: var(--muted); font-size: .59rem; }
 .theme-options button i { width: 8px; height: 8px; position: absolute; top: 13px; right: 13px; border: 1px solid #abc0db; border-radius: 50%; }
 .theme-options button.active i { border-color: var(--blue); background: var(--blue); box-shadow: 0 0 0 3px rgba(94, 164, 255, .14); }
+.balance-adjustment-card { display: grid; gap: 11px; margin-top: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: linear-gradient(145deg, #fbfdff, #f1f7ff); }
+.balance-adjustment-current { display: flex; align-items: center; gap: 11px; margin-bottom: 2px; }
+.balance-adjustment-current > span { width: 38px; height: 38px; display: grid; place-items: center; color: var(--blue); border-radius: 11px; background: var(--white); box-shadow: 0 5px 16px rgba(28, 61, 102, .08); }
+.balance-adjustment-current svg { width: 18px; }
+.balance-adjustment-current small, .balance-adjustment-current strong { display: block; }
+.balance-adjustment-current small { margin-bottom: 2px; color: var(--muted); font-size: .61rem; font-weight: 700; }
+.balance-adjustment-current strong { font-family: Georgia, serif; font-size: 1.35rem; font-weight: 400; }
+.balance-adjustment-current strong.negative { color: var(--red); }
+.balance-adjustment-card > label { margin-top: 3px; color: var(--ink); font-size: .68rem; font-weight: 800; }
+.balance-adjustment-input input { width: 100%; min-height: 48px; font-size: 16px; }
+.balance-adjustment-input > span { top: 14px; }
+.balance-adjustment-card > p { margin: 0; color: var(--muted); font-size: .61rem; line-height: 1.5; }
+.balance-adjustment-card > button { width: 100%; min-height: 46px; }
+.balance-adjustment-card > button svg { width: 17px; }
+.balance-adjustment-notice { padding: 10px 11px; color: #126144; border: 1px solid rgba(20, 117, 84, .24); border-radius: 10px; background: rgba(20, 117, 84, .08); font-size: .62rem; font-weight: 750; line-height: 1.45; }
 .settings-backup-section .backup-panel { margin-top: 14px; }
 
 .reserves-panel { margin: 0; padding: 0; overflow: hidden; }
@@ -1001,6 +1016,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 :root[data-theme="dark"] .loan-participants .participant-repaid-button { color: var(--green); border-color: #2f705a; background: #123329; }
 :root[data-theme="dark"] .transaction-editor,
 :root[data-theme="dark"] .settings-sheet { border-color: #31445c; background: #101b29; }
+:root[data-theme="dark"] .balance-adjustment-card { background: linear-gradient(145deg, #122033, #0d1928); }
+:root[data-theme="dark"] .balance-adjustment-current > span { background: #17283c; }
+:root[data-theme="dark"] .balance-adjustment-notice { color: #72d5ae; border-color: #2f705a; background: #123329; }
 :root[data-theme="dark"] .backup-panel { background: rgba(16, 27, 41, .88); }
 :root[data-theme="dark"] .empty-icon,
 :root[data-theme="dark"] .transaction-type-icon.income { background: #123329; }

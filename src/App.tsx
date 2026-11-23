@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import AuthScreen from './AuthScreen'
 import type { BackupData } from './BackupPanel'
 import Dashboard from './Dashboard'
-import { normalizeCryptoAsset } from './finance'
+import { calculateBalanceAdjustment, getAvailableBalance, normalizeCryptoAsset } from './finance'
 import { closeSession, isSessionOpen, loadFutureSavingsPlan, loadLoans, loadReserveMovements, loadTransactionDraftRecord, loadTransactions, saveTransactionDraftRecord, syncFromCloud, syncToCloud, type CloudSnapshot } from './storage'
 import type { AppFeedback, FutureSavingsPlan, Loan, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionFormDraftRecord } from './types'
 
@@ -19,6 +19,14 @@ function applyTheme(theme: ThemePreference) {
   const resolved = theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : theme === 'system' ? 'light' : theme
   document.documentElement.dataset.theme = resolved
   document.documentElement.dataset.themePreference = theme
+}
+
+function localDate() {
+  const date = new Date()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 export default function App() {
@@ -142,6 +150,27 @@ export default function App() {
 
   function deleteTransaction(id: string) {
     updateTransactions(transactions.filter((transaction) => transaction.id !== id), 'Movimiento eliminado y cambio sincronizado')
+  }
+
+  function adjustCurrentBalance(targetBalance: number) {
+    const adjustment = calculateBalanceAdjustment(getAvailableBalance(transactions, loans), targetBalance)
+    if (!adjustment) {
+      setFeedback({ id: ++feedbackSequence.current, message: 'El saldo ya coincide. No hace falta cambiar nada.', tone: 'success' })
+      return true
+    }
+    const now = Date.now()
+    const transaction: Transaction = {
+      id: crypto.randomUUID(),
+      type: adjustment.type,
+      amount: adjustment.amount,
+      category: 'Ajuste de saldo',
+      date: localDate(),
+      description: 'Saldo anterior',
+      createdAt: now,
+      updatedAt: now,
+      balanceAdjustment: true,
+    }
+    return updateTransactions([transaction, ...transactions], `Saldo ajustado a ${new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(targetBalance)} y sincronizado`)
   }
 
   function addReserveMovement(movement: ReserveMovement) {
@@ -273,6 +302,7 @@ export default function App() {
       onSaveLoan={saveLoan}
       onDeleteLoan={deleteLoan}
       onImportBackup={importBackup}
+      onAdjustBalance={adjustCurrentBalance}
       onImportCsv={(incoming) => updateTransactions([...incoming, ...transactions], `${incoming.length} movimientos del CSV guardados y sincronizados`)}
       theme={theme}
       onThemeChange={changeTheme}

@@ -20,6 +20,13 @@ test('Forecast income replaces recorded income instead of counting it twice', ()
   assert.equal(result.remaining, 2100)
 })
 
+test('A balance adjustment is not treated as monthly income', () => {
+  const adjustment = { ...row('income', 3000), balanceAdjustment: true }
+  const result = calculateFutureSavings([adjustment, row('income', 1000), row('expense', 200)], { ...plan, monthlySaving: 100, pendingExpenses: 0 }, '2026-11')
+  assert.equal(result.income, 1000)
+  assert.equal(result.remaining, 700)
+})
+
 test('A deficit stays negative, while the daily spending allowance is zero', () => {
   const result = calculateFutureSavings([row('income', 200)], plan, '2026-11')
   assert.equal(result.remaining, -200)

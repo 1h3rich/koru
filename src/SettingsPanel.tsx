@@ -1,11 +1,14 @@
-import { useEffect } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import BackupPanel, { type BackupData } from './BackupPanel'
-import { CloseIcon, DeviceIcon, GearIcon, MoonIcon, SunIcon } from './Icons'
+import DecimalInput from './DecimalInput'
+import { CheckIcon, CloseIcon, DeviceIcon, GearIcon, MoonIcon, SunIcon, WalletIcon } from './Icons'
 import type { Loan, ReserveMovement, ThemePreference, Transaction } from './types'
 
 interface SettingsPanelProps {
   theme: ThemePreference
   onThemeChange: (theme: ThemePreference) => void
+  currentBalance: number
+  onAdjustBalance: (balance: number) => boolean | void
   transactions: Transaction[]
   reserveMovements: ReserveMovement[]
   loans: Loan[]
@@ -19,7 +22,11 @@ const themeOptions: Array<{ value: ThemePreference, label: string, description: 
   { value: 'dark', label: 'Oscuro', description: 'Cómodo de noche', icon: MoonIcon },
 ]
 
-export default function SettingsPanel({ theme, onThemeChange, transactions, reserveMovements, loans, onImportBackup, onClose }: SettingsPanelProps) {
+const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
+
+export default function SettingsPanel({ theme, onThemeChange, currentBalance, onAdjustBalance, transactions, reserveMovements, loans, onImportBackup, onClose }: SettingsPanelProps) {
+  const [targetBalance, setTargetBalance] = useState(currentBalance)
+  const [balanceNotice, setBalanceNotice] = useState('')
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose()
@@ -27,6 +34,13 @@ export default function SettingsPanel({ theme, onThemeChange, transactions, rese
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [onClose])
+
+  function submitBalance(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setBalanceNotice('')
+    if (onAdjustBalance(targetBalance) === false) return
+    setBalanceNotice(`Koru queda en ${currency.format(targetBalance)}. El ajuste aparece en Movimientos y puedes editarlo o borrarlo.`)
+  }
 
   return (
     <div className="settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
@@ -49,6 +63,18 @@ export default function SettingsPanel({ theme, onThemeChange, transactions, rese
               )
             })}
           </div>
+        </div>
+
+        <div className="settings-section balance-settings-section">
+          <div className="settings-section-heading"><strong>Ajustar saldo actual</strong><span>No necesitas saber cuánto tenías antes.</span></div>
+          <form className="balance-adjustment-card" onSubmit={submitBalance}>
+            <div className="balance-adjustment-current"><span><WalletIcon /></span><div><small>Ahora en Koru</small><strong className={currentBalance < 0 ? 'negative' : ''}>{currency.format(currentBalance)}</strong></div></div>
+            <label htmlFor="target-balance">Lo que tienes realmente ahora</label>
+            <div className="amount-input balance-adjustment-input"><span>€</span><DecimalInput id="target-balance" value={targetBalance} onValueChange={setTargetBalance} min={-1_000_000_000} max={1_000_000_000} required /></div>
+            <p>Koru añadirá únicamente la diferencia como «Saldo anterior». No borrará ni cambiará ningún movimiento.</p>
+            <button type="submit" className="primary-button"><CheckIcon /> Igualar saldo</button>
+            {balanceNotice && <div className="balance-adjustment-notice" role="status">{balanceNotice}</div>}
+          </form>
         </div>
 
         <div className="settings-section settings-backup-section">
