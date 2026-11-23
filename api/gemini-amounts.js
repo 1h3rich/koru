@@ -6,6 +6,8 @@ const GEMINI_MODELS = [
   { name: 'gemini-3.6-flash', thinkingLevel: 'MINIMAL' },
   { name: 'gemini-3.8-flash', thinkingLevel: 'LOW' },
   { name: 'gemini-3-flash-preview', thinkingLevel: 'MINIMAL' },
+  { name: 'gemini-2.5-flash-lite', thinkingLevel: 'LOW' },
+  { name: 'gemini-2.5-flash', thinkingLevel: 'LOW' },
 ]
 const MAX_IMAGE_BYTES = 500_000
 
@@ -184,16 +186,20 @@ export default async function handler(request, response) {
 
     let geminiResponse = await requestModel(GEMINI_MODELS[0], 20_000).catch(() => null)
     if (!geminiResponse?.ok && geminiResponse?.status !== 401 && geminiResponse?.status !== 403 && geminiResponse?.status !== 429) {
-      let lastFailure = geminiResponse
+      const failures = geminiResponse ? [geminiResponse] : []
       const fallbacks = GEMINI_MODELS.slice(1).map(async (model) => {
         const modelResponse = await requestModel(model, 40_000)
         if (!modelResponse.ok) {
-          lastFailure = modelResponse
+          failures.push(modelResponse)
           throw new Error('Modelo no disponible')
         }
         return modelResponse
       })
-      geminiResponse = await Promise.any(fallbacks).catch(() => lastFailure)
+      geminiResponse = await Promise.any(fallbacks).catch(() => (
+        failures.find((failure) => failure.status === 401 || failure.status === 403 || failure.status === 429)
+        ?? failures.find((failure) => failure.status === 503)
+        ?? failures[0]
+      ))
     }
 
     if (!geminiResponse) throw new Error('Los modelos de Gemini agotaron el tiempo de espera')

@@ -81,9 +81,11 @@ test('Gemini falls back to another free Flash model during a demand spike', asyn
 test('Gemini can reach the latest stable Flash model when the first two models are saturated', async () => {
   const { amounts, requestedUrls } = await readWithGemini([reading('-7,50 €', 7.5)], { unavailableCount: 2 })
   assert.deepEqual(amounts, [7.5])
-  assert.equal(requestedUrls.length, 4)
+  assert.equal(requestedUrls.length, 6)
   assert.match(requestedUrls[2], /gemini-3\.8-flash/)
   assert.match(requestedUrls[3], /gemini-3-flash-preview/)
+  assert.match(requestedUrls[4], /gemini-2\.5-flash-lite/)
+  assert.match(requestedUrls[5], /gemini-2\.5-flash:generateContent/)
 })
 
 test('Text fallback: three negative expenses and one positive income', () => {
