@@ -7,9 +7,10 @@ import TransactionEditor from './TransactionEditor'
 import SettingsPanel from './SettingsPanel'
 import TransactionForm from './TransactionForm'
 import FutureSavingsPanel from './FutureSavingsPanel'
+import CsvImportPanel from './CsvImportPanel'
 import { getLoanOutstanding, getReserveTotals } from './finance'
 import { getPurchaseBatchSources } from './purchaseBatch'
-import type { AppFeedback, FutureSavingsPlan, Loan, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionType } from './types'
+import type { AppFeedback, FutureSavingsPlan, Loan, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionType } from './types'
 
 type Filter = 'all' | TransactionType
 
@@ -19,6 +20,9 @@ const dateFormatter = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 
 interface DashboardProps {
   transactions: Transaction[]
   onAdd: (transaction: Transaction) => boolean | void
+  transactionDraft: TransactionFormDraftData | null
+  onTransactionDraftChange: (draft: TransactionFormDraftData | null) => void
+  onImportCsv: (transactions: Transaction[]) => boolean | void
   onDelete: (id: string) => void
   onUpdate: (transaction: Transaction) => boolean | void
   futureSavings: FutureSavingsPlan | null
@@ -38,7 +42,7 @@ interface DashboardProps {
   onLogout: () => void
 }
 
-export default function Dashboard({ transactions, onAdd, onDelete, onUpdate, reserveMovements, syncStatus, feedback, onAddReserveMovement, onDeleteReserveMovement, onUpdateReserveMovement, loans, futureSavings, onSaveFutureSavings, onSaveLoan, onDeleteLoan, onImportBackup, theme, onThemeChange, onLogout }: DashboardProps) {
+export default function Dashboard({ transactions, onAdd, transactionDraft, onTransactionDraftChange, onImportCsv, onDelete, onUpdate, reserveMovements, syncStatus, feedback, onAddReserveMovement, onDeleteReserveMovement, onUpdateReserveMovement, loans, futureSavings, onSaveFutureSavings, onSaveLoan, onDeleteLoan, onImportBackup, theme, onThemeChange, onLogout }: DashboardProps) {
   const [filter, setFilter] = useState<Filter>('all')
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -165,7 +169,8 @@ export default function Dashboard({ transactions, onAdd, onDelete, onUpdate, res
 
         <div className="workspace-grid">
           <div className="action-stack">
-            <TransactionForm onAdd={onAdd} />
+            <TransactionForm onAdd={onAdd} savedDraft={transactionDraft} onDraftChange={onTransactionDraftChange} />
+            <CsvImportPanel onImport={onImportCsv} />
             <ReservesPanel
               movements={reserveMovements}
               onAdd={onAddReserveMovement}

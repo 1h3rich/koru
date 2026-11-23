@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import AuthScreen from './AuthScreen'
 import type { BackupData } from './BackupPanel'
 import Dashboard from './Dashboard'
 import { normalizeCryptoAsset } from './finance'
-import { closeSession, isSessionOpen, loadFutureSavingsPlan, loadLoans, loadReserveMovements, loadTransactions, syncFromCloud, syncToCloud, type CloudSnapshot } from './storage'
-import type { AppFeedback, FutureSavingsPlan, Loan, ReserveMovement, SyncStatus, ThemePreference, Transaction } from './types'
+import { closeSession, isSessionOpen, loadFutureSavingsPlan, loadLoans, loadReserveMovements, loadTransactionDraftRecord, loadTransactions, saveTransactionDraftRecord, syncFromCloud, syncToCloud, type CloudSnapshot } from './storage'
+import type { AppFeedback, FutureSavingsPlan, Loan, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionFormDraftRecord } from './types'
 
 const THEME_KEY = 'koru.theme.v1'
 
@@ -27,6 +27,8 @@ export default function App() {
   const [reserveMovements, setReserveMovements] = useState<ReserveMovement[]>(loadReserveMovements)
   const [loans, setLoans] = useState<Loan[]>(loadLoans)
   const [futureSavings, setFutureSavings] = useState<FutureSavingsPlan | null>(loadFutureSavingsPlan)
+  const [transactionDraft, setTransactionDraft] = useState<TransactionFormDraftRecord | null>(loadTransactionDraftRecord)
+  const [draftSaveSequence, setDraftSaveSequence] = useState(0)
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced')
   const [feedback, setFeedback] = useState<AppFeedback | null>(null)
   const feedbackSequence = useRef(0)
@@ -64,6 +66,7 @@ export default function App() {
         setReserveMovements(snapshot.reserveMovements)
         setLoans(snapshot.loans ?? [])
         setFutureSavings(snapshot.futureSavings ?? loadFutureSavingsPlan())
+        setTransactionDraft(snapshot.transactionDraft ?? loadTransactionDraftRecord())
         setSyncStatus('synced')
       })
       .catch(() => {
@@ -73,6 +76,31 @@ export default function App() {
       })
     return () => { active = false }
   }, [authenticated])
+
+  useEffect(() => {
+    if (!authenticated || draftSaveSequence === 0 || !transactionDraft) return
+    const timer = window.setTimeout(() => {
+      Promise.resolve()
+        .then(() => syncToCloud(transactions, reserveMovements, loans, futureSavings, transactionDraft))
+        .then(() => setSyncStatus('synced'))
+        .catch(() => setSyncStatus('offline'))
+    }, 1200)
+    return () => window.clearTimeout(timer)
+  }, [authenticated, draftSaveSequence, futureSavings, loans, reserveMovements, transactionDraft, transactions])
+
+  const saveTransactionDraft = useCallback((data: TransactionFormDraftData | null) => {
+    const record: TransactionFormDraftRecord = data
+      ? { data, updatedAt: Date.now() }
+      : { cleared: true, updatedAt: Date.now() }
+    try {
+      saveTransactionDraftRecord(record)
+      setTransactionDraft(record)
+      setDraftSaveSequence((current) => current + 1)
+    } catch {
+      setSyncStatus('storage-error')
+      setFeedback({ id: ++feedbackSequence.current, message: 'No pude guardar el borrador en este dispositivo.', tone: 'warning' })
+    }
+  }, [])
 
   function sync(nextTransactions: Transaction[], nextReserves: ReserveMovement[], nextLoans: Loan[], successMessage: string, nextPlan = futureSavings) {
     const feedbackId = ++feedbackSequence.current
@@ -216,6 +244,7 @@ export default function App() {
     setReserveMovements(snapshot.reserveMovements)
     setLoans(snapshot.loans ?? [])
     setFutureSavings(snapshot.futureSavings ?? loadFutureSavingsPlan())
+    setTransactionDraft(snapshot.transactionDraft ?? loadTransactionDraftRecord())
     setSyncStatus('synced')
     setAuthenticated(true)
   }
@@ -228,6 +257,8 @@ export default function App() {
     <Dashboard
       transactions={transactions}
       onAdd={addTransaction}
+      transactionDraft={transactionDraft?.cleared ? null : transactionDraft?.data ?? null}
+      onTransactionDraftChange={saveTransactionDraft}
       onDelete={deleteTransaction}
       onUpdate={updateTransaction}
       reserveMovements={reserveMovements}
@@ -242,6 +273,7 @@ export default function App() {
       onSaveLoan={saveLoan}
       onDeleteLoan={deleteLoan}
       onImportBackup={importBackup}
+      onImportCsv={(incoming) => updateTransactions([...incoming, ...transactions], `${incoming.length} movimientos del CSV guardados y sincronizados`)}
       theme={theme}
       onThemeChange={changeTheme}
       onLogout={logout}

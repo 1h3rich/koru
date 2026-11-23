@@ -53,3 +53,18 @@ export function addManualPurchaseBatchValue(batch: PurchaseBatch, value = 0): Pu
   else sources.push({ id: crypto.randomUUID(), values: [value] })
   return buildPurchaseBatch(sources)!
 }
+
+export function removePurchaseBatchImage(batch: PurchaseBatch, sourceId: string): PurchaseBatch {
+  const sources = getPurchaseBatchSources(batch).map((source) => (
+    source.id === sourceId ? { ...source, imageDataUrl: undefined } : source
+  ))
+  return buildPurchaseBatch(sources)!
+}
+
+export function withoutPurchaseBatchImages(batch: PurchaseBatch | null): PurchaseBatch | null {
+  if (!batch) return null
+  return buildPurchaseBatch(getPurchaseBatchSources(batch).map((source) => ({
+    id: source.id,
+    values: [...source.values],
+  })))
+}

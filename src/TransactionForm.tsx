@@ -1,10 +1,11 @@
-import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
 import DecimalInput from './DecimalInput'
 import { ArrowDownIcon, ArrowUpIcon, CalendarIcon, CameraIcon, ImageIcon, PlusIcon, ReceiptIcon, TrashIcon } from './Icons'
 import { readPurchaseAmountsWithGemini, readReceiptWithGemini } from './gemini'
-import { addManualPurchaseBatchValue, buildPurchaseBatch, getPurchaseBatchSources, updatePurchaseBatchValue } from './purchaseBatch'
+import { addManualPurchaseBatchValue, buildPurchaseBatch, getPurchaseBatchSources, removePurchaseBatchImage, updatePurchaseBatchValue } from './purchaseBatch'
 import { compressPurchaseImage, compressReceiptImage, parseLargePurchaseAmounts } from './receipt'
-import type { PurchaseBatch, PurchaseBatchSource, ReceiptDetails, ReceiptItem, Transaction, TransactionDraft, TransactionType } from './types'
+import { createTransactionFormDraft, hasTransactionFormDraft } from './transactionDraft'
+import type { PurchaseBatch, PurchaseBatchSource, ReceiptDetails, ReceiptItem, Transaction, TransactionFormDraftData, TransactionDraft, TransactionType } from './types'
 
 const categories: Record<TransactionType, string[]> = {
   income: ['Nómina', 'Venta', 'Freelance', 'Regalo', 'Otros ingresos'],
@@ -26,18 +27,21 @@ const MAX_PURCHASE_PHOTOS = 3
 
 interface TransactionFormProps {
   onAdd: (transaction: Transaction) => boolean | void
+  savedDraft: TransactionFormDraftData | null
+  onDraftChange: (draft: TransactionFormDraftData | null) => void
 }
 
-export default function TransactionForm({ onAdd }: TransactionFormProps) {
-  const [draft, setDraft] = useState<TransactionDraft>({
+export default function TransactionForm({ onAdd, savedDraft, onDraftChange }: TransactionFormProps) {
+  const emptyDraft: TransactionDraft = {
     type: 'expense',
     amount: '',
     category: categories.expense[0],
     date: today,
     description: '',
-  })
-  const [receipt, setReceipt] = useState<ReceiptDetails | null>(null)
-  const [purchaseBatch, setPurchaseBatch] = useState<PurchaseBatch | null>(null)
+  }
+  const [draft, setDraft] = useState<TransactionDraft>(() => savedDraft?.draft ?? emptyDraft)
+  const [receipt, setReceipt] = useState<ReceiptDetails | null>(() => savedDraft?.receipt ?? null)
+  const [purchaseBatch, setPurchaseBatch] = useState<PurchaseBatch | null>(() => savedDraft?.purchaseBatch ?? null)
   const [photos, setPhotos] = useState<string[]>([])
   const [scanning, setScanning] = useState(false)
   const [scanError, setScanError] = useState('')
@@ -51,6 +55,13 @@ export default function TransactionForm({ onAdd }: TransactionFormProps) {
 
   const availableCategories = useMemo(() => categories[draft.type], [draft.type])
   const receiptItemsTotal = receipt?.items.reduce((sum, item) => sum + item.price, 0) ?? 0
+  const draftData = useMemo(() => createTransactionFormDraft(draft, receipt, purchaseBatch), [draft, purchaseBatch, receipt])
+  const hasDraft = hasTransactionFormDraft(draftData)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => onDraftChange(hasDraft ? draftData : null), 350)
+    return () => window.clearTimeout(timer)
+  }, [draftData, hasDraft, onDraftChange])
 
   function setType(type: TransactionType) {
     setDraft((current) => ({ ...current, type, category: categories[type][0] }))
@@ -134,11 +145,10 @@ export default function TransactionForm({ onAdd }: TransactionFormProps) {
     applyPurchaseBatch(addManualPurchaseBatchValue(purchaseBatch))
   }
 
-  function removeBatchSource(sourceId: string) {
+  function removeBatchImage(sourceId: string) {
     if (!purchaseBatch) return
-    const next = buildPurchaseBatch(getPurchaseBatchSources(purchaseBatch).filter((source) => source.id !== sourceId))
-    applyPurchaseBatch(next)
-    setBatchNotice('Captura eliminada junto con sus importes.')
+    setPurchaseBatch(removePurchaseBatchImage(purchaseBatch, sourceId))
+    setBatchNotice('Imagen eliminada. Los importes siguen guardados.')
     setBatchError('')
   }
 
@@ -246,6 +256,19 @@ export default function TransactionForm({ onAdd }: TransactionFormProps) {
     setBatchProgress(0)
   }
 
+  function clearAllData() {
+    setDraft(emptyDraft)
+    setReceipt(null)
+    setPurchaseBatch(null)
+    setPhotos([])
+    setScanError('')
+    setPhotoError('')
+    setBatchError('')
+    setBatchNotice('')
+    setError('')
+    onDraftChange(null)
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const amount = Number(draft.amount.replace(',', '.'))
@@ -278,6 +301,7 @@ export default function TransactionForm({ onAdd }: TransactionFormProps) {
     setPhotos([])
     setScanError('')
     setError('')
+    onDraftChange(null)
   }
 
   return (
@@ -292,6 +316,13 @@ export default function TransactionForm({ onAdd }: TransactionFormProps) {
       </summary>
 
       <form className="transaction-form transaction-form-content" onSubmit={handleSubmit}>
+        <div className={`draft-banner ${hasDraft ? 'has-data' : ''}`} role="status">
+          <div>
+            <strong>{hasDraft ? 'Borrador guardado' : 'Borrador automático'}</strong>
+            <span>Los datos se guardan cifrados; las imágenes no forman parte del borrador.</span>
+          </div>
+          {hasDraft && <button type="button" onClick={clearAllData}><TrashIcon /> Borrar datos</button>}
+        </div>
         <fieldset className="type-toggle">
           <legend>Tipo de movimiento</legend>
           <button type="button" className={draft.type === 'income' ? 'active income' : ''} onClick={() => setType('income')} aria-pressed={draft.type === 'income'}>
@@ -325,7 +356,7 @@ export default function TransactionForm({ onAdd }: TransactionFormProps) {
             {receipt && !scanning && (
               <div className="receipt-review">
                 <div className="receipt-review-top">
-                  {receipt.imageDataUrl && <img src={receipt.imageDataUrl} alt="Vista previa del ticket" />}
+                  {receipt.imageDataUrl && <div className="removable-source-image"><img src={receipt.imageDataUrl} alt="Vista previa del ticket" /><button type="button" onClick={() => setReceipt({ ...receipt, imageDataUrl: undefined })}><TrashIcon /> Borrar solo imagen</button></div>}
                   <div className="field">
                     <label htmlFor="receipt-merchant">Comercio</label>
                     <input id="receipt-merchant" value={receipt.merchant} onChange={(event) => {
@@ -366,7 +397,7 @@ export default function TransactionForm({ onAdd }: TransactionFormProps) {
                   <span>Suma de productos <b>{currency.format(receiptItemsTotal)}</b></span>
                   {Math.abs(receiptItemsTotal - receipt.total) > 0.009 && <button type="button" onClick={useItemsTotal}>Usar esta suma</button>}
                 </div>
-                <button type="button" className="discard-content-button" onClick={discardReceipt}><TrashIcon /> Descartar ticket</button>
+                <button type="button" className="discard-content-button" onClick={discardReceipt}><TrashIcon /> Borrar datos del ticket</button>
               </div>
             )}
           </section>
@@ -397,9 +428,9 @@ export default function TransactionForm({ onAdd }: TransactionFormProps) {
 
             {purchaseBatch && !batchScanning && (
               <div className="purchase-values-review">
-                <button type="button" className="discard-content-button batch-discard" onClick={discardPurchaseBatch}><TrashIcon /> Descartar todas las capturas</button>
+                <button type="button" className="discard-content-button batch-discard" onClick={discardPurchaseBatch}><TrashIcon /> Borrar datos de las compras</button>
                 <div className="purchase-batch-thumbnails">
-                  {getPurchaseBatchSources(purchaseBatch).filter((source) => source.imageDataUrl).map((source, index) => <div className="purchase-batch-thumbnail" key={source.id}><img src={source.imageDataUrl} alt={`Captura de compras ${index + 1}`} /><button type="button" className="icon-button" onClick={() => removeBatchSource(source.id)} aria-label={`Eliminar captura ${index + 1} y sus importes`} title="Eliminar captura y sus importes"><TrashIcon /></button></div>)}
+                  {getPurchaseBatchSources(purchaseBatch).filter((source) => source.imageDataUrl).map((source, index) => <div className="purchase-batch-thumbnail" key={source.id}><img src={source.imageDataUrl} alt={`Captura de compras ${index + 1}`} /><button type="button" className="icon-button" onClick={() => removeBatchImage(source.id)} aria-label={`Borrar solo la imagen ${index + 1}`} title="Borrar solo la imagen; conservar importes"><TrashIcon /></button></div>)}
                 </div>
                 <div className="purchase-values-list">
                   {purchaseBatch.values.map((value, index) => (

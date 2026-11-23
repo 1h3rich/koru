@@ -58,6 +58,18 @@ export interface TransactionDraft {
   description: string
 }
 
+export interface TransactionFormDraftData {
+  draft: TransactionDraft
+  receipt: ReceiptDetails | null
+  purchaseBatch: PurchaseBatch | null
+}
+
+export interface TransactionFormDraftRecord {
+  data?: TransactionFormDraftData
+  cleared?: boolean
+  updatedAt: number
+}
+
 export interface FutureSavingsPlan {
   monthlySaving: number
   incomeOverride: number | null

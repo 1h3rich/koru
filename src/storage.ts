@@ -1,11 +1,12 @@
-import type { FutureSavingsPlan, Loan, ReserveMovement, Transaction } from './types'
-import { buildPurchaseBatch, getPurchaseBatchSources } from './purchaseBatch'
+import type { FutureSavingsPlan, Loan, ReserveMovement, Transaction, TransactionFormDraftRecord } from './types'
+import { buildPurchaseBatch, getPurchaseBatchSources, withoutPurchaseBatchImages } from './purchaseBatch'
 import { validFutureSavingsPlan } from './futureSavings'
 
 const TRANSACTIONS_KEY = 'koru.transactions.v1'
 const RESERVES_KEY = 'koru.reserves.v1'
 const LOANS_KEY = 'koru.loans.v1'
 const FUTURE_SAVINGS_KEY = 'koru.future-savings.v1'
+const TRANSACTION_DRAFT_KEY = 'koru.transaction-draft.v1'
 const DELETIONS_KEY = 'koru.deletions.v1'
 const SESSION_TOKEN_KEY = 'koru.cloud.token.v1'
 const SESSION_ENCRYPTION_KEY = 'koru.cloud.key.v1'
@@ -13,6 +14,7 @@ const KEY_DERIVATION_SALT = 'koru-private-sync-v1'
 const KEY_DERIVATION_ITERATIONS = 310_000
 const OFFLINE_SESSION = 'offline'
 const LOCAL_PASSWORD_HASH = '9ec20861648a786be50248d6014ea97f360a03df3f486502ec36b82093e01c23'
+const MAX_CLOUD_PLAINTEXT_BYTES = 3_200_000
 
 export interface CloudSnapshot {
   transactions: Transaction[]
@@ -21,6 +23,7 @@ export interface CloudSnapshot {
   deletions?: DeletionLog
   updatedAt: number
   futureSavings?: FutureSavingsPlan
+  transactionDraft?: TransactionFormDraftRecord
 }
 
 interface DeletionLog {
@@ -145,6 +148,7 @@ function normalizeSnapshot(snapshot: Partial<CloudSnapshot>): CloudSnapshot {
     },
     updatedAt: snapshot.updatedAt ?? Date.now(),
     futureSavings: validFutureSavingsPlan(snapshot.futureSavings) ? snapshot.futureSavings : undefined,
+    transactionDraft: validTransactionDraftRecord(snapshot.transactionDraft) ? snapshot.transactionDraft : undefined,
   }
 }
 
@@ -182,6 +186,7 @@ function mergeSnapshots(first: CloudSnapshot, second: CloudSnapshot): CloudSnaps
     deletions,
     updatedAt: Math.max(first.updatedAt, second.updatedAt, Date.now()),
     futureSavings: (second.futureSavings?.updatedAt ?? -1) > (first.futureSavings?.updatedAt ?? -1) ? second.futureSavings : first.futureSavings,
+    transactionDraft: (second.transactionDraft?.updatedAt ?? -1) > (first.transactionDraft?.updatedAt ?? -1) ? second.transactionDraft : first.transactionDraft,
   }
 }
 
@@ -202,6 +207,7 @@ function localSnapshot(): CloudSnapshot {
     deletions: loadDeletions(),
     updatedAt: Date.now(),
     futureSavings: loadFutureSavingsPlan() ?? undefined,
+    transactionDraft: loadTransactionDraftRecord() ?? undefined,
   }
 }
 
@@ -211,6 +217,7 @@ function saveSnapshotLocally(snapshot: CloudSnapshot): void {
   saveLoans(snapshot.loans ?? [])
   localStorage.setItem(DELETIONS_KEY, JSON.stringify(snapshot.deletions ?? emptyDeletions()))
   if (snapshot.futureSavings) localStorage.setItem(FUTURE_SAVINGS_KEY, JSON.stringify(snapshot.futureSavings))
+  if (snapshot.transactionDraft) localStorage.setItem(TRANSACTION_DRAFT_KEY, JSON.stringify(snapshot.transactionDraft))
 }
 
 function sessionCredentials(): { token: string, encryptionKey: string } | null {
@@ -220,7 +227,9 @@ function sessionCredentials(): { token: string, encryptionKey: string } | null {
 }
 
 async function saveEncryptedSnapshot(snapshot: CloudSnapshot, token: string, encryptionKey: string, expectedRevision: number): Promise<void> {
-  const payload = await encryptSnapshot(snapshot, encryptionKey)
+  const plaintextBytes = new TextEncoder().encode(JSON.stringify(snapshot)).byteLength
+  const cloudSnapshot = plaintextBytes > MAX_CLOUD_PLAINTEXT_BYTES ? withoutSnapshotImages(snapshot) : snapshot
+  const payload = await encryptSnapshot(cloudSnapshot, encryptionKey)
   await callSync({ action: 'save', payload, expectedRevision }, token)
 }
 
@@ -288,14 +297,14 @@ export async function syncFromCloud(): Promise<CloudSnapshot | null> {
   return synchronizeSnapshot(localSnapshot(), credentials.token, credentials.encryptionKey)
 }
 
-export function syncToCloud(transactions: Transaction[], reserveMovements: ReserveMovement[], loans: Loan[], futureSavings = loadFutureSavingsPlan()): Promise<void> {
+export function syncToCloud(transactions: Transaction[], reserveMovements: ReserveMovement[], loans: Loan[], futureSavings = loadFutureSavingsPlan(), transactionDraft = loadTransactionDraftRecord()): Promise<void> {
   const previous = localSnapshot()
   const now = Date.now()
   const deletions = mergeDeletionLogs(previous.deletions, emptyDeletions())
   recordMissingIds(previous.transactions, transactions, deletions.transactions, now)
   recordMissingIds(previous.reserveMovements, reserveMovements, deletions.reserveMovements, now)
   recordMissingIds(previous.loans, loans, deletions.loans, now)
-  const snapshot: CloudSnapshot = { transactions: compactTransactions(transactions), reserveMovements, loans, deletions, updatedAt: now, futureSavings: futureSavings ?? undefined }
+  const snapshot: CloudSnapshot = { transactions: compactTransactions(transactions), reserveMovements, loans, deletions, updatedAt: now, futureSavings: futureSavings ?? undefined, transactionDraft: transactionDraft ?? undefined }
   saveSnapshotLocally(snapshot)
 
   const credentials = sessionCredentials()
@@ -350,6 +359,41 @@ function compactTransactions(transactions: Transaction[]): Transaction[] {
     ...transaction,
     purchaseBatch: buildPurchaseBatch(getPurchaseBatchSources(transaction.purchaseBatch)) ?? undefined,
   } : transaction)
+}
+
+function validTransactionDraftRecord(value: unknown): value is TransactionFormDraftRecord {
+  if (!value || typeof value !== 'object') return false
+  const record = value as TransactionFormDraftRecord
+  return Number.isFinite(record.updatedAt) && (record.cleared === true || Boolean(record.data?.draft))
+}
+
+function withoutTransactionImages(transaction: Transaction): Transaction {
+  const receipt = transaction.receipt
+    ? { merchant: transaction.receipt.merchant, total: transaction.receipt.total, items: transaction.receipt.items.map((item) => ({ ...item })) }
+    : undefined
+  return {
+    ...transaction,
+    receipt,
+    photos: undefined,
+    purchaseBatch: transaction.purchaseBatch ? withoutPurchaseBatchImages(transaction.purchaseBatch) ?? undefined : undefined,
+  }
+}
+
+function withoutSnapshotImages(snapshot: CloudSnapshot): CloudSnapshot {
+  return { ...snapshot, transactions: snapshot.transactions.map(withoutTransactionImages) }
+}
+
+export function loadTransactionDraftRecord(): TransactionFormDraftRecord | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(TRANSACTION_DRAFT_KEY) ?? 'null')
+    return validTransactionDraftRecord(saved) ? saved : null
+  } catch {
+    return null
+  }
+}
+
+export function saveTransactionDraftRecord(record: TransactionFormDraftRecord): void {
+  localStorage.setItem(TRANSACTION_DRAFT_KEY, JSON.stringify(record))
 }
 
 export function loadFutureSavingsPlan(): FutureSavingsPlan | null {

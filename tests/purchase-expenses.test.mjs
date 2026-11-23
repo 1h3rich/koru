@@ -3,7 +3,9 @@ import { createHmac } from 'node:crypto'
 import { afterEach, mock, test } from 'node:test'
 import handler from '../api/gemini-amounts.js'
 import { parseLargePurchaseAmounts, parsePurchaseAmounts } from '../src/receipt.ts'
-import { buildPurchaseBatch } from '../src/purchaseBatch.ts'
+import { buildPurchaseBatch, getPurchaseBatchSources, removePurchaseBatchImage } from '../src/purchaseBatch.ts'
+import { createTransactionFormDraft } from '../src/transactionDraft.ts'
+import { parseTransactionsCsv } from '../src/csvImport.ts'
 
 // This process uses only a fake session/key and a controlled Gemini response.
 process.env.KORU_SYNC_SECRET = 'owned-negative-expenses-test'
@@ -109,21 +111,56 @@ test('Word fallback: split euros/cents still require a negative sign', () => {
   assert.deepEqual(parseLargePurchaseAmounts([line(['+500,00', '€'], 0), line(['80,00', '€'], 30)], ''), [])
 })
 
-test('All 94 negative readings are retained by Gemini and both local parsers', async () => {
-  const readings = Array.from({ length: 94 }, (_, index) => reading(`-${index + 1},00 €`, index + 1, index / 94))
+test('All 100 negative readings are retained by Gemini and both local parsers', async () => {
+  const readings = Array.from({ length: 100 }, (_, index) => reading(`-${index + 1},00 €`, index + 1, index / 100))
   const expected = readings.map((row) => row.amount)
-  assert.deepEqual((await readWithGemini(readings)).amounts, expected)
+  const result = await readWithGemini(readings)
+  assert.deepEqual(result.amounts, expected)
+  assert.ok(result.prompt.generationConfig.maxOutputTokens >= 8192)
   assert.deepEqual(parsePurchaseAmounts(readings.map((row) => row.printed).join('\n')), expected)
   assert.deepEqual(parseLargePurchaseAmounts(readings.map((row, index) => line([row.printed], index * 30)), ''), expected)
 })
 
-test('A 94-value batch stores each capture once instead of duplicating image data', () => {
-  const sources = Array.from({ length: 10 }, (_, index) => ({ id: `source-${index}`, imageDataUrl: `data:image/jpeg;base64,${index}AAA`, values: Array.from({ length: index < 4 ? 10 : 9 }, () => 1) }))
+test('A 100-value batch stores each capture once instead of duplicating image data', () => {
+  const sources = Array.from({ length: 10 }, (_, index) => ({ id: `source-${index}`, imageDataUrl: `data:image/jpeg;base64,${index}AAA`, values: Array.from({ length: 10 }, () => 1) }))
   const batch = buildPurchaseBatch(sources)
-  assert.equal(batch.values.length, 94)
+  assert.equal(batch.values.length, 100)
   const saved = JSON.stringify(batch)
   for (const source of sources) assert.equal(saved.split(source.imageDataUrl).length - 1, 1)
   assert.deepEqual(buildPurchaseBatch(JSON.parse(saved).sources), batch)
+})
+
+test('Deleting a batch image preserves all 100 imported values', () => {
+  const batch = buildPurchaseBatch([
+    { id: 'first', imageDataUrl: 'data:image/jpeg;base64,AAA', values: Array.from({ length: 50 }, (_, index) => index + 1) },
+    { id: 'second', imageDataUrl: 'data:image/jpeg;base64,BBB', values: Array.from({ length: 50 }, (_, index) => index + 51) },
+  ])
+  const result = removePurchaseBatchImage(batch, 'first')
+  assert.equal(result.values.length, 100)
+  assert.equal(result.values.reduce((sum, value) => sum + value, 0), 5050)
+  assert.equal(getPurchaseBatchSources(result).find((source) => source.id === 'first').imageDataUrl, undefined)
+})
+
+test('Automatic transaction drafts retain data but never copy heavy images', () => {
+  const draft = createTransactionFormDraft(
+    { type: 'expense', amount: '7,50', category: 'Alimentación', date: '2026-11-23', description: 'Tienda' },
+    { merchant: 'Tienda', total: 7.5, imageDataUrl: 'data:image/jpeg;base64,TICKET', items: [{ id: 'bread', name: 'Pan', price: 7.5 }] },
+    buildPurchaseBatch([{ id: 'capture', imageDataUrl: 'data:image/jpeg;base64,CAPTURE', values: [2.5, 5] }]),
+  )
+  assert.equal(draft.receipt.imageDataUrl, undefined)
+  assert.equal(getPurchaseBatchSources(draft.purchaseBatch)[0].imageDataUrl, undefined)
+  assert.deepEqual(draft.purchaseBatch.values, [2.5, 5])
+  assert.equal(draft.receipt.items[0].name, 'Pan')
+})
+
+test('CSV import accepts 100 Spanish decimal rows as lightweight movements', () => {
+  const rows = Array.from({ length: 100 }, (_, index) => `gasto;${index + 1},50;Alimentación;23/11/2026;Compra ${index + 1}`)
+  const result = parseTransactionsCsv(`tipo;importe;categoria;fecha;descripcion\n${rows.join('\n')}`)
+  assert.equal(result.errors.length, 0)
+  assert.equal(result.transactions.length, 100)
+  assert.equal(result.transactions[0].amount, 1.5)
+  assert.equal(result.transactions[99].amount, 100.5)
+  assert.equal(result.transactions[0].date, '2026-11-23')
 })
 
 test('Receipt mode reads all 94 positive product prices with Gemini and keeps the printed total', async () => {

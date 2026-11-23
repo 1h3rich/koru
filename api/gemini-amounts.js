@@ -140,7 +140,7 @@ export default async function handler(request, response) {
       }],
       generationConfig: {
         temperature: 0,
-        maxOutputTokens: mode === 'receipt' ? 8192 : 2048,
+        maxOutputTokens: 8192,
         responseMimeType: 'application/json',
         responseJsonSchema: mode === 'receipt' ? receiptSchema : {
           type: 'object',
