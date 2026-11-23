@@ -90,8 +90,6 @@ function normalizeReadings(value) {
 async function geminiFailure(response) {
   const payload = await response.json().catch(() => ({}))
   const providerStatus = payload?.error?.status
-  const providerMessage = typeof payload?.error?.message === 'string' ? payload.error.message.slice(0, 500) : 'Sin detalle'
-  console.error('[DEBUG-gemini-upstream]', response.status, providerStatus ?? 'UNKNOWN', providerMessage)
   if (response.status === 401 || response.status === 403) return 'Google ha rechazado la clave de Gemini.'
   if (response.status === 404 || providerStatus === 'NOT_FOUND') return 'El modelo de Gemini no está disponible para esta cuenta.'
   if (response.status === 429 || providerStatus === 'RESOURCE_EXHAUSTED') return 'Se ha alcanzado el límite gratuito de Gemini. Inténtalo más tarde.'
@@ -115,89 +113,90 @@ export default async function handler(request, response) {
     const image = parseImage(body.imageDataUrl)
     if (!image) return json(response, 400, { error: 'Imagen no válida o demasiado grande.' })
 
-    const requestOptions = {
+    const requestPayload = {
+      systemInstruction: {
+        parts: [{ text: 'Eres un verificador visual de importes extremadamente estricto. Omite cualquier dato dudoso. Nunca converses, expliques, calcules ni inventes.' }],
+      },
+      contents: [{
+        role: 'user',
+        parts: [
+          {
+            text: mode === 'receipt' ? receiptPrompt : [
+              'Lee esta captura de movimientos bancarios.',
+              'Distingue gastos negativos de ingresos positivos. Devuelve SOLO movimientos con signo negativo visible (- o −), en orden de arriba hacia abajo.',
+              'Excluye ingresos, abonos, devoluciones y cualquier importe positivo con +. Excluye también importes sin signo o cuyo signo no se vea con claridad; nunca supongas que son gastos.',
+              'Si hay cuatro movimientos y tres son negativos y uno positivo, devuelve exactamente los tres negativos. Si no hay negativos claros, devuelve readings vacío.',
+              'Incluye únicamente el importe PRINCIPAL visualmente destacado de cada movimiento.',
+              'Ignora saldos, fechas, horas, números de tarjeta, límites, tipos de cambio y equivalencias secundarias pequeñas o atenuadas.',
+              'Para cada importe copia literalmente el texto impreso, incluyendo signo, decimales y símbolo €. Indica su posición vertical aproximada entre 0 y 1.',
+              'Marca visuallyPrimary=true solamente si es el importe principal de una fila y se ve con claridad. Exige confianza mínima de 0.90; si dudas, omítelo.',
+              'printed debe conservar el signo negativo visible. amount es la magnitud positiva de ese gasto negativo, con dos decimales, porque Koru ya lo registra como gasto. No cambies el signo de un ingreso para incluirlo, ni calcules ni sumes.',
+            ].join(' '),
+          },
+          { inlineData: { mimeType: image.mimeType, data: image.data } },
+        ],
+      }],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: mode === 'receipt' ? 8192 : 2048,
+        responseMimeType: 'application/json',
+        responseJsonSchema: mode === 'receipt' ? receiptSchema : {
+          type: 'object',
+          properties: {
+            readings: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  printed: { type: 'string', description: 'Texto exacto de un gasto con signo negativo visible, decimales y €.' },
+                  amount: { type: 'number', description: 'Magnitud positiva del gasto negativo de printed. Nunca un ingreso.' },
+                  confidence: { type: 'number', minimum: 0, maximum: 1 },
+                  visuallyPrimary: { type: 'boolean' },
+                  relativeY: { type: 'number', minimum: 0, maximum: 1 },
+                },
+                required: ['printed', 'amount', 'confidence', 'visuallyPrimary', 'relativeY'],
+                additionalProperties: false,
+              },
+              description: 'Solo gastos con signo negativo visible. Excluye positivos, ingresos e importes sin signo.',
+            },
+          },
+          required: ['readings'],
+          additionalProperties: false,
+        },
+      },
+    }
+
+    const requestModel = (model, timeout) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model.name}:generateContent`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-goog-api-key': process.env.GEMINI_API_KEY,
       },
       body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: 'Eres un verificador visual de importes extremadamente estricto. Omite cualquier dato dudoso. Nunca converses, expliques, calcules ni inventes.' }],
-        },
-        contents: [{
-          role: 'user',
-          parts: [
-            {
-              text: mode === 'receipt' ? receiptPrompt : [
-                'Lee esta captura de movimientos bancarios.',
-                'Distingue gastos negativos de ingresos positivos. Devuelve SOLO movimientos con signo negativo visible (- o −), en orden de arriba hacia abajo.',
-                'Excluye ingresos, abonos, devoluciones y cualquier importe positivo con +. Excluye también importes sin signo o cuyo signo no se vea con claridad; nunca supongas que son gastos.',
-                'Si hay cuatro movimientos y tres son negativos y uno positivo, devuelve exactamente los tres negativos. Si no hay negativos claros, devuelve readings vacío.',
-                'Incluye únicamente el importe PRINCIPAL visualmente destacado de cada movimiento.',
-                'Ignora saldos, fechas, horas, números de tarjeta, límites, tipos de cambio y equivalencias secundarias pequeñas o atenuadas.',
-                'Para cada importe copia literalmente el texto impreso, incluyendo signo, decimales y símbolo €. Indica su posición vertical aproximada entre 0 y 1.',
-                'Marca visuallyPrimary=true solamente si es el importe principal de una fila y se ve con claridad. Exige confianza mínima de 0.90; si dudas, omítelo.',
-                'printed debe conservar el signo negativo visible. amount es la magnitud positiva de ese gasto negativo, con dos decimales, porque Koru ya lo registra como gasto. No cambies el signo de un ingreso para incluirlo, ni calcules ni sumes.',
-              ].join(' '),
-            },
-            { inlineData: { mimeType: image.mimeType, data: image.data } },
-          ],
-        }],
+        ...requestPayload,
         generationConfig: {
-          temperature: 0,
-          maxOutputTokens: mode === 'receipt' ? 8192 : 2048,
-          thinkingConfig: { thinkingLevel: GEMINI_MODELS[0].thinkingLevel },
-          responseMimeType: 'application/json',
-          responseJsonSchema: mode === 'receipt' ? receiptSchema : {
-            type: 'object',
-            properties: {
-              readings: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    printed: { type: 'string', description: 'Texto exacto de un gasto con signo negativo visible, decimales y €.' },
-                    amount: { type: 'number', description: 'Magnitud positiva del gasto negativo de printed. Nunca un ingreso.' },
-                    confidence: { type: 'number', minimum: 0, maximum: 1 },
-                    visuallyPrimary: { type: 'boolean' },
-                    relativeY: { type: 'number', minimum: 0, maximum: 1 },
-                  },
-                  required: ['printed', 'amount', 'confidence', 'visuallyPrimary', 'relativeY'],
-                  additionalProperties: false,
-                },
-                description: 'Solo gastos con signo negativo visible. Excluye positivos, ingresos e importes sin signo.',
-              },
-            },
-            required: ['readings'],
-            additionalProperties: false,
-          },
+          ...requestPayload.generationConfig,
+          thinkingConfig: { thinkingLevel: model.thinkingLevel },
         },
       }),
-    }
+      signal: AbortSignal.timeout(timeout),
+    })
 
-    let geminiResponse
-    for (const [index, model] of GEMINI_MODELS.entries()) {
-      try {
-        const modelRequestOptions = {
-          ...requestOptions,
-          body: JSON.stringify({
-            ...JSON.parse(requestOptions.body),
-            generationConfig: {
-              ...JSON.parse(requestOptions.body).generationConfig,
-              thinkingConfig: { thinkingLevel: model.thinkingLevel },
-            },
-          }),
-          signal: AbortSignal.timeout(12_000),
+    let geminiResponse = await requestModel(GEMINI_MODELS[0], 20_000).catch(() => null)
+    if (!geminiResponse?.ok && geminiResponse?.status !== 401 && geminiResponse?.status !== 403 && geminiResponse?.status !== 429) {
+      let lastFailure = geminiResponse
+      const fallbacks = GEMINI_MODELS.slice(1).map(async (model) => {
+        const modelResponse = await requestModel(model, 40_000)
+        if (!modelResponse.ok) {
+          lastFailure = modelResponse
+          throw new Error('Modelo no disponible')
         }
-        geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model.name}:generateContent`, modelRequestOptions)
-      } catch (error) {
-        if (index < GEMINI_MODELS.length - 1) continue
-        throw error
-      }
-      if (geminiResponse.ok || geminiResponse.status !== 503 || index === GEMINI_MODELS.length - 1) break
+        return modelResponse
+      })
+      geminiResponse = await Promise.any(fallbacks).catch(() => lastFailure)
     }
 
+    if (!geminiResponse) throw new Error('Los modelos de Gemini agotaron el tiempo de espera')
     if (!geminiResponse.ok) return json(response, 502, { error: await geminiFailure(geminiResponse) })
     const result = await geminiResponse.json()
     const candidate = result?.candidates?.[0]
