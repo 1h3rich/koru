@@ -1,0 +1,20 @@
+{
+  "name": "Koru · Finanzas privadas",
+  "short_name": "Koru",
+  "id": "/",
+  "description": "Registra ingresos y gastos sin compartir tus datos.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f9fc",
+  "theme_color": "#0b63e6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

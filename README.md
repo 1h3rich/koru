@@ -1,77 +1,34 @@
-# Koru — Diario de guardería
+# Koru
 
-App web (Next.js + Supabase) para que guarderías y familias compartan el
-diario diario de cada niño/a: asistencia, horarios, fotos, calendario de
-eventos, mensajes y más.
+Aplicación privada y local para registrar ingresos y gastos.
 
-Este README es solo el punto de entrada técnico (cómo arrancarlo en local).
-El contexto de producto, decisiones de diseño y roadmap viven en otros
-documentos del repo — no los repite ni los sustituye:
-
-| Documento | Qué contiene |
-|---|---|
-| `notas/` | Notas de producto, visión y decisiones de UX acumuladas |
-| `auditoria-calidad/README.md` | Auditoría de calidad del proyecto |
-| `.security/` | Configuración de seguridad del repo |
-| `supabase/migrations/` | Historial completo del esquema de base de datos (orden cronológico) |
-
-## Stack
-
-- **Next.js 16** (App Router) + **React 19**, Tailwind CSS 4.
-- **Supabase** (`@supabase/ssr` + `@supabase/supabase-js`) para base de
-  datos Postgres, autenticación y almacenamiento de fotos.
-- **Resend** para envío de emails.
-- `motion` (Framer Motion) para animaciones, `canvas-confetti` para
-  celebraciones puntuales en la UI.
-
-## Cómo arrancarlo en local
-
-Requisitos: Node.js, y una CLI de Supabase si quieres levantar la base de
-datos en local (`npx supabase start`) en vez de apuntar a un proyecto en
-la nube.
-
-1. `npm install`
-2. Duplica la plantilla de variables de entorno del repo (el archivo cuyo
-   nombre termina en "example" en la raíz del proyecto) en un archivo
-   nuevo con el mismo nombre pero sin el sufijo "example" — ese será tu
-   fichero de configuración local, ya excluido del control de versiones.
-   Rellénalo con la URL y las claves de tu proyecto Supabase
-   (`NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`) y el resto
-   de valores que pida la plantilla (Resend, etc.).
-3. `npm run dev`
-
-Abre [http://localhost:3000](http://localhost:3000).
-
-Si usas Supabase local en vez de un proyecto en la nube:
+## Puesta en marcha
 
 ```bash
-npx supabase start        # levanta Postgres/Auth/Storage local (Docker)
-npx supabase db reset     # aplica todas las migraciones de supabase/migrations/
+npm install
+npm run dev
 ```
 
-## Estructura
+Koru pide una contraseña de acceso en cada nueva sesión. Conserva datos en el navegador y sincroniza un snapshot cifrado con AES-GCM. La sesión se mantiene en `sessionStorage` hasta cerrar la pestaña o pulsar «Cerrar sesión».
 
-- `src/app/` — rutas (App Router). Entre otras: `login`, `registro`,
-  `pendiente` (cuentas a la espera de aprobación), `panel` (vista de
-  administración/educadoras), `mi-diario` (vista de familia), `admin`,
-  `bienvenida`.
-- `src/components/` — componentes de UI compartidos.
-- `src/lib/supabase/` — clientes de Supabase (browser/servidor).
-- `supabase/migrations/` — todo el esquema de base de datos, en orden. Para
-  entender qué tablas/políticas RLS existen, es la fuente de verdad.
+## Privacidad
 
-## Comandos
+- Los movimientos y el plan de ahorro se cifran en el dispositivo antes de sincronizarse mediante `/api/sync`.
+- «Leer un ticket» utiliza exclusivamente Gemini: la fotografía se envía al proveedor solo al solicitar su lectura. Si falla, se muestra el error y no se utiliza OCR local.
+- «Añadir con Gemini» lee capturas bancarias y conserva únicamente cargos con signo negativo visible. Los ingresos, abonos e importes sin signo se excluyen. «Añadir sin IA» es una opción local independiente, también limitada a negativos.
+- Las capturas de una compra se almacenan una vez por fuente. Los campos antiguos con imágenes repetidas se compactan al guardar, conservando fuentes y valores.
+- No hay recorte silencioso a 20/30 valores. Se prueban lectura, guardado y recuperación de 94 importes/productos. Una respuesta truncada de Gemini se rechaza y los fallos de espacio conservan el borrador.
 
-```bash
-npm run dev     # servidor de desarrollo
-npm run build   # build de producción
-npm run start   # servir el build de producción
-npm run lint    # eslint (incluye reglas de seguridad y accesibilidad)
-```
+## Ahorro a futuro
 
-## Notas de flujo de cuentas
+Debajo de «Dinero prestado» puedes planificar un ahorro mensual y ver qué margen queda:
 
-Las cuentas nuevas quedan en estado pendiente hasta que alguien con
-permisos las aprueba (ver migración `20260802203128_aprobacion_cuentas.sql`
-y la ruta `src/app/pendiente/`) — si una cuenta recién registrada no puede
-entrar todavía, es ese flujo funcionando como debe, no un fallo.
+`ingresos del mes − ahorro objetivo − gastos registrados − pagos pendientes`
+
+Los ingresos registrados pueden sustituirse por una previsión manual, sin sumarla dos veces. Los pagos pendientes excluyen gastos ya registrados. El margen diario se reparte entre los días restantes del mes, incluido hoy, y se redondea hacia abajo a céntimos. Los déficits se muestran; el objetivo anual es el ahorro mensual multiplicado por doce, sin asumir rentabilidad. El plan se guarda localmente y dentro del snapshot cifrado, con su fecha de edición para resolver cambios entre dispositivos.
+
+El enfoque se basa en reservar ahorro dentro del presupuesto personal, como recoge el [presupuestador de Finanzas para Todos](https://www.finanzasparatodos.es/herramientas/mipresupuesto). No se impone un porcentaje de ahorro.
+
+## Comprobaciones
+
+`npm test` verifica el filtro de signos, 94 valores, respuestas incompletas, tickets y fórmulas del presupuesto. `npm run build` y `npm run lint` comprueban tipos, compilación y estilo. Las pruebas usan respuestas controladas y datos propios; no acreditan la precisión de Gemini para cualquier fotografía.

@@ -1,25 +1,41 @@
-// Service worker mínimo, solo para recibir notificaciones push. No
-// cachea nada ni intercepta peticiones (no es un service worker de
-// offline/PWA) — su único trabajo es mostrar la notificación que
-// llega y abrir la app al tocarla.
-self.addEventListener('push', (event) => {
-  let datos = {}
-  try {
-    datos = event.data ? event.data.json() : {}
-  } catch {
-    datos = {}
-  }
+const CACHE_NAME = 'koru-v8'
+const CORE_ASSETS = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg', '/apple-touch-icon.png']
 
-  event.waitUntil(
-    self.registration.showNotification(datos.titulo || 'Koru', {
-      body: datos.cuerpo || '',
-      data: { url: datos.url || '/' },
-    })
-  )
+self.addEventListener('install', (event) => {
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS)))
+  self.skipWaiting()
 })
 
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close()
-  const url = event.notification.data?.url || '/'
-  event.waitUntil(self.clients.openWindow(url))
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) => Promise.all(
+      keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)),
+    )),
+  )
+  self.clients.claim()
+})
+
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return
+
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone()
+          caches.open(CACHE_NAME).then((cache) => cache.put('/', copy))
+          return response
+        })
+        .catch(() => caches.match('/')),
+    )
+    return
+  }
+
+  event.respondWith(
+    caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
+      const copy = response.clone()
+      caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy))
+      return response
+    })),
+  )
 })
