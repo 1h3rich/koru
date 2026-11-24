@@ -7,10 +7,11 @@ import TransactionEditor from './TransactionEditor'
 import SettingsPanel from './SettingsPanel'
 import TransactionForm from './TransactionForm'
 import FutureSavingsPanel from './FutureSavingsPanel'
+import FixedExpensesPanel from './FixedExpensesPanel'
 import CsvImportPanel from './CsvImportPanel'
 import { getAvailableBalance, getLoanOutstanding, getReserveTotals } from './finance'
 import { getPurchaseBatchSources } from './purchaseBatch'
-import type { AppFeedback, FutureSavingsPlan, Loan, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionType } from './types'
+import type { AppFeedback, FixedExpense, FutureSavingsPlan, Loan, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionType } from './types'
 
 type Filter = 'all' | TransactionType
 
@@ -34,8 +35,11 @@ interface DashboardProps {
   onDeleteReserveMovement: (id: string) => void
   onUpdateReserveMovement: (movement: ReserveMovement) => void
   loans: Loan[]
+  fixedExpenses: FixedExpense[]
   onSaveLoan: (loan: Loan) => void
   onDeleteLoan: (id: string) => void
+  onSaveFixedExpense: (expense: FixedExpense) => void
+  onDeleteFixedExpense: (id: string) => void
   onImportBackup: (data: BackupData) => void
   onAdjustBalance: (balance: number) => boolean | void
   theme: ThemePreference
@@ -43,7 +47,7 @@ interface DashboardProps {
   onLogout: () => void
 }
 
-export default function Dashboard({ transactions, onAdd, transactionDraft, onTransactionDraftChange, onImportCsv, onDelete, onUpdate, reserveMovements, syncStatus, feedback, onAddReserveMovement, onDeleteReserveMovement, onUpdateReserveMovement, loans, futureSavings, onSaveFutureSavings, onSaveLoan, onDeleteLoan, onImportBackup, onAdjustBalance, theme, onThemeChange, onLogout }: DashboardProps) {
+export default function Dashboard({ transactions, onAdd, transactionDraft, onTransactionDraftChange, onImportCsv, onDelete, onUpdate, reserveMovements, syncStatus, feedback, onAddReserveMovement, onDeleteReserveMovement, onUpdateReserveMovement, loans, fixedExpenses, futureSavings, onSaveFutureSavings, onSaveLoan, onDeleteLoan, onSaveFixedExpense, onDeleteFixedExpense, onImportBackup, onAdjustBalance, theme, onThemeChange, onLogout }: DashboardProps) {
   const [filter, setFilter] = useState<Filter>('all')
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -179,6 +183,7 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
               onUpdate={onUpdateReserveMovement}
             />
             <LoansPanel loans={loans} onSave={onSaveLoan} onDelete={onDeleteLoan} />
+            <FixedExpensesPanel expenses={fixedExpenses} transactions={transactions} onSave={onSaveFixedExpense} onDelete={onDeleteFixedExpense} />
             <FutureSavingsPanel key={futureSavings?.updatedAt ?? 'empty-plan'} transactions={transactions} plan={futureSavings} onSave={onSaveFutureSavings} />
           </div>
 
@@ -299,7 +304,7 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
         </footer>
       </main>
       {editingTransaction && <TransactionEditor key={editingTransaction.id} transaction={editingTransaction} onSave={onUpdate} onClose={() => setEditingTransaction(null)} />}
-      {settingsOpen && <SettingsPanel theme={theme} onThemeChange={onThemeChange} currentBalance={totals.balance} onAdjustBalance={onAdjustBalance} transactions={transactions} reserveMovements={reserveMovements} loans={loans} onImportBackup={onImportBackup} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsPanel theme={theme} onThemeChange={onThemeChange} currentBalance={totals.balance} onAdjustBalance={onAdjustBalance} transactions={transactions} reserveMovements={reserveMovements} loans={loans} fixedExpenses={fixedExpenses} onImportBackup={onImportBackup} onClose={() => setSettingsOpen(false)} />}
       {viewingPhoto && <div className="photo-viewer" role="dialog" aria-modal="true" aria-label="Foto ampliada" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewingPhoto(null) }}><button type="button" onClick={() => setViewingPhoto(null)} aria-label="Cerrar foto"><CloseIcon /></button><img src={viewingPhoto} alt="Foto ampliada de la compra" /></div>}
     </div>
   )

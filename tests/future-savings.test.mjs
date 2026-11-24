@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { calculateFutureSavings } from '../src/futureSavings.ts'
+import { calculateFutureSavings, getMonthlySavingsHistory } from '../src/futureSavings.ts'
 
 const plan = { monthlySaving: 300, incomeOverride: null, pendingExpenses: 100, updatedAt: 1 }
 const row = (type, amount, date = '2026-11-02') => ({ id: crypto.randomUUID(), type, amount, date, category: 'Prueba', description: '', createdAt: 1 })
@@ -45,4 +45,16 @@ test('Calendar handles leap months, past months and future months', () => {
   assert.equal(calculateFutureSavings([], plan, '2028-02', new Date(2028, 2, 1)).daysRemaining, 0)
   assert.throws(() => calculateFutureSavings([], { ...plan, monthlySaving: -1 }, '2026-11'))
   assert.throws(() => calculateFutureSavings([], plan, '2026-13'))
+})
+
+test('Monthly savings history keeps past months and highlights deficits', () => {
+  const history = getMonthlySavingsHistory([
+    row('income', 1000, '2026-11-02'), row('expense', 800, '2026-11-20'),
+    row('income', 1000, '2026-12-01'), row('expense', 1030, '2026-12-20'),
+    { ...row('income', 999, '2026-12-02'), balanceAdjustment: true },
+  ])
+  assert.deepEqual(history, [
+    { month: '2026-12', income: 1000, expenses: 1030, savings: -30 },
+    { month: '2026-11', income: 1000, expenses: 800, savings: 200 },
+  ])
 })

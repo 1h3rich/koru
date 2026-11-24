@@ -75,6 +75,10 @@ export function CalendarIcon(props: IconProps) {
   return <svg {...base} {...props}><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M8 3v4M16 3v4M3 10h18" /></svg>
 }
 
+export function RepeatIcon(props: IconProps) {
+  return <svg {...base} {...props}><path d="m17 2 4 4-4 4" /><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4" /><path d="M21 13v2a3 3 0 0 1-3 3H3" /></svg>
+}
+
 export function ReceiptIcon(props: IconProps) {
   return <svg {...base} {...props}><path d="M6 3h12v18l-2-1.5L14 21l-2-1.5L10 21l-2-1.5L6 21V3Z" /><path d="M9 8h6M9 12h6M9 16h3" /></svg>
 }

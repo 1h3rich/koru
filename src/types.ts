@@ -78,6 +78,17 @@ export interface FutureSavingsPlan {
   updatedAt: number
 }
 
+export interface FixedExpense {
+  id: string
+  name: string
+  amount: number
+  category: string
+  dueDay: number | null
+  active: boolean
+  createdAt: number
+  updatedAt?: number
+}
+
 export type LoanStatus = 'open' | 'repaid'
 
 export interface LoanParticipant {

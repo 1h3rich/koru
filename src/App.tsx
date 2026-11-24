@@ -3,8 +3,8 @@ import AuthScreen from './AuthScreen'
 import type { BackupData } from './BackupPanel'
 import Dashboard from './Dashboard'
 import { calculateBalanceAdjustment, getAvailableBalance, normalizeCryptoAsset } from './finance'
-import { closeSession, isSessionOpen, loadFutureSavingsPlan, loadLoans, loadReserveMovements, loadTransactionDraftRecord, loadTransactions, saveTransactionDraftRecord, syncFromCloud, syncToCloud, type CloudSnapshot } from './storage'
-import type { AppFeedback, FutureSavingsPlan, Loan, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionFormDraftRecord } from './types'
+import { closeSession, isSessionOpen, loadFixedExpenses, loadFutureSavingsPlan, loadLoans, loadReserveMovements, loadTransactionDraftRecord, loadTransactions, saveTransactionDraftRecord, syncFromCloud, syncToCloud, type CloudSnapshot } from './storage'
+import type { AppFeedback, FixedExpense, FutureSavingsPlan, Loan, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionFormDraftRecord } from './types'
 
 const THEME_KEY = 'koru.theme.v1'
 
@@ -34,6 +34,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>(loadTransactions)
   const [reserveMovements, setReserveMovements] = useState<ReserveMovement[]>(loadReserveMovements)
   const [loans, setLoans] = useState<Loan[]>(loadLoans)
+  const [fixedExpenses, setFixedExpenses] = useState<FixedExpense[]>(loadFixedExpenses)
   const [futureSavings, setFutureSavings] = useState<FutureSavingsPlan | null>(loadFutureSavingsPlan)
   const [transactionDraft, setTransactionDraft] = useState<TransactionFormDraftRecord | null>(loadTransactionDraftRecord)
   const [draftSaveSequence, setDraftSaveSequence] = useState(0)
@@ -73,6 +74,7 @@ export default function App() {
         setTransactions(snapshot.transactions)
         setReserveMovements(snapshot.reserveMovements)
         setLoans(snapshot.loans ?? [])
+        setFixedExpenses(snapshot.fixedExpenses ?? [])
         setFutureSavings(snapshot.futureSavings ?? loadFutureSavingsPlan())
         setTransactionDraft(snapshot.transactionDraft ?? loadTransactionDraftRecord())
         setSyncStatus('synced')
@@ -89,12 +91,12 @@ export default function App() {
     if (!authenticated || draftSaveSequence === 0 || !transactionDraft) return
     const timer = window.setTimeout(() => {
       Promise.resolve()
-        .then(() => syncToCloud(transactions, reserveMovements, loans, futureSavings, transactionDraft))
+        .then(() => syncToCloud(transactions, reserveMovements, loans, futureSavings, transactionDraft, fixedExpenses))
         .then(() => setSyncStatus('synced'))
         .catch(() => setSyncStatus('offline'))
     }, 1200)
     return () => window.clearTimeout(timer)
-  }, [authenticated, draftSaveSequence, futureSavings, loans, reserveMovements, transactionDraft, transactions])
+  }, [authenticated, draftSaveSequence, fixedExpenses, futureSavings, loans, reserveMovements, transactionDraft, transactions])
 
   const saveTransactionDraft = useCallback((data: TransactionFormDraftData | null) => {
     const record: TransactionFormDraftRecord = data
@@ -110,11 +112,11 @@ export default function App() {
     }
   }, [])
 
-  function sync(nextTransactions: Transaction[], nextReserves: ReserveMovement[], nextLoans: Loan[], successMessage: string, nextPlan = futureSavings) {
+  function sync(nextTransactions: Transaction[], nextReserves: ReserveMovement[], nextLoans: Loan[], successMessage: string, nextPlan = futureSavings, nextFixedExpenses = fixedExpenses) {
     const feedbackId = ++feedbackSequence.current
     let pending: Promise<void>
     try {
-      pending = syncToCloud(nextTransactions, nextReserves, nextLoans, nextPlan)
+      pending = syncToCloud(nextTransactions, nextReserves, nextLoans, nextPlan, transactionDraft, nextFixedExpenses)
     } catch {
       setSyncStatus('storage-error')
       setFeedback({ id: feedbackId, message: 'No se pudo guardar. Libera espacio o elimina fotos y vuelve a intentarlo.', tone: 'warning' })
@@ -239,6 +241,21 @@ export default function App() {
     sync(transactions, reserveMovements, nextLoans, 'Préstamo eliminado y cambio sincronizado')
   }
 
+  function saveFixedExpense(expense: FixedExpense) {
+    const exists = fixedExpenses.some((current) => current.id === expense.id)
+    const nextFixedExpenses = exists
+      ? fixedExpenses.map((current) => current.id === expense.id ? expense : current)
+      : [expense, ...fixedExpenses]
+    setFixedExpenses(nextFixedExpenses)
+    sync(transactions, reserveMovements, loans, exists ? 'Gasto fijo actualizado y sincronizado' : 'Gasto fijo guardado y sincronizado', futureSavings, nextFixedExpenses)
+  }
+
+  function deleteFixedExpense(id: string) {
+    const nextFixedExpenses = fixedExpenses.filter((expense) => expense.id !== id)
+    setFixedExpenses(nextFixedExpenses)
+    sync(transactions, reserveMovements, loans, 'Gasto fijo eliminado y cambio sincronizado', futureSavings, nextFixedExpenses)
+  }
+
   function importBackup(data: BackupData) {
     function combine<T extends { id: string, createdAt: number, updatedAt?: number }>(current: T[], incoming: T[]): T[] {
       const merged = new Map(current.map((item) => [item.id, item]))
@@ -251,10 +268,12 @@ export default function App() {
     const nextTransactions = combine(transactions, data.transactions)
     const nextReserves = combine(reserveMovements, data.reserveMovements)
     const nextLoans = combine(loans, data.loans)
+    const nextFixedExpenses = combine(fixedExpenses, data.fixedExpenses ?? [])
     setTransactions(nextTransactions)
     setReserveMovements(nextReserves)
     setLoans(nextLoans)
-    sync(nextTransactions, nextReserves, nextLoans, 'Copia importada y sincronizada')
+    setFixedExpenses(nextFixedExpenses)
+    sync(nextTransactions, nextReserves, nextLoans, 'Copia importada y sincronizada', futureSavings, nextFixedExpenses)
   }
 
   function logout() {
@@ -272,6 +291,7 @@ export default function App() {
     setTransactions(snapshot.transactions)
     setReserveMovements(snapshot.reserveMovements)
     setLoans(snapshot.loans ?? [])
+    setFixedExpenses(snapshot.fixedExpenses ?? [])
     setFutureSavings(snapshot.futureSavings ?? loadFutureSavingsPlan())
     setTransactionDraft(snapshot.transactionDraft ?? loadTransactionDraftRecord())
     setSyncStatus('synced')
@@ -297,10 +317,13 @@ export default function App() {
       onDeleteReserveMovement={deleteReserveMovement}
       onUpdateReserveMovement={updateReserveMovement}
       loans={loans}
+      fixedExpenses={fixedExpenses}
       futureSavings={futureSavings}
       onSaveFutureSavings={saveFutureSavings}
       onSaveLoan={saveLoan}
       onDeleteLoan={deleteLoan}
+      onSaveFixedExpense={saveFixedExpense}
+      onDeleteFixedExpense={deleteFixedExpense}
       onImportBackup={importBackup}
       onAdjustBalance={adjustCurrentBalance}
       onImportCsv={(incoming) => updateTransactions([...incoming, ...transactions], `${incoming.length} movimientos del CSV guardados y sincronizados`)}

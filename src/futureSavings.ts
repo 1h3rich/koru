@@ -36,3 +36,24 @@ export function calculateFutureSavings(transactions: Transaction[], plan: Future
     annualTarget: savingCents * 12 / 100,
   }
 }
+
+export function getMonthlySavingsHistory(transactions: Transaction[]) {
+  const months = new Map<string, { incomeCents: number, expenseCents: number }>()
+  for (const transaction of transactions) {
+    if (transaction.balanceAdjustment || !/^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(transaction.date) || !Number.isFinite(transaction.amount) || transaction.amount < 0) continue
+    const month = transaction.date.slice(0, 7)
+    const current = months.get(month) ?? { incomeCents: 0, expenseCents: 0 }
+    const amount = Math.round(transaction.amount * 100)
+    if (transaction.type === 'income') current.incomeCents += amount
+    else current.expenseCents += amount
+    months.set(month, current)
+  }
+  return [...months.entries()]
+    .map(([month, values]) => ({
+      month,
+      income: values.incomeCents / 100,
+      expenses: values.expenseCents / 100,
+      savings: (values.incomeCents - values.expenseCents) / 100,
+    }))
+    .sort((a, b) => b.month.localeCompare(a.month))
+}

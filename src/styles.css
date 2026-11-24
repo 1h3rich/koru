@@ -305,7 +305,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .transaction-manager-summary strong, .reserve-manager-summary strong { display: block; margin-bottom: 4px; font-family: Georgia, serif; font-size: 1.12rem; font-weight: 400; }
 .transaction-manager-summary div > span, .reserve-manager-summary div > span { display: block; color: var(--muted); font-size: .7rem; }
 .details-plus { color: var(--blue); font-size: 1.4rem; font-weight: 400; transition: transform .2s; }
-.add-panel[open] .details-plus, .reserves-panel[open] .details-plus, .loans-panel[open] .details-plus { transform: rotate(45deg); }
+.add-panel[open] .details-plus, .reserves-panel[open] .details-plus, .loans-panel[open] .details-plus, .fixed-expenses-panel[open] .details-plus, .future-savings-panel[open] .details-plus { transform: rotate(45deg); }
 .transaction-form-content { padding: 4px 30px 30px; border-top: 1px solid var(--line); }
 .transaction-form-content .type-toggle { margin-top: 24px; }
 .history-panel { overflow: hidden; }
@@ -333,6 +333,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .loan-due-picker { width: 100%; min-width: 0; margin-top: 9px; }
 .date-picker-shell.loan-date-picker { justify-content: center; text-align: center; }
 .date-picker-shell.loan-date-picker > svg { position: absolute; right: 15px; }
+.date-picker-shell.reserve-date-picker { justify-content: center; text-align: center; }
+.date-picker-shell.reserve-date-picker > svg { position: absolute; right: 15px; }
 .field input, .field select { min-width: 0; max-width: 100%; }
 .field input[type="date"] { display: block; width: 100%; min-inline-size: 0; max-inline-size: 100%; }
 .field input[type="date"]::-webkit-date-and-time-value { min-width: 0; text-align: left; }
@@ -627,6 +629,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .loan-payment-confirmation .confirm-payment-button svg { width: 12px; }
 .loan-paid-history { margin-top: 18px; overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: rgba(247, 250, 252, .8); }
 .loan-paid-heading { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+.loan-paid-heading { cursor: pointer; list-style: none; }
+.loan-paid-heading::-webkit-details-marker { display: none; }
 .loan-paid-heading span { color: var(--ink); font-size: .65rem; font-weight: 800; }
 .loan-paid-heading small { color: var(--muted); font-size: .55rem; font-weight: 750; text-transform: uppercase; letter-spacing: .08em; }
 .loan-paid-history ul { margin: 0; padding: 0; list-style: none; }
@@ -767,6 +771,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .crypto-allocation-track { height: 5px; margin-top: 7px; overflow: hidden; border-radius: 99px; background: #d9e7f8; }
 .crypto-allocation-track span { display: block; height: 100%; border-radius: inherit; background: var(--blue); }
 .reserve-empty { min-height: 120px; display: grid; place-items: center; margin: 0; padding: 20px; color: var(--muted); border: 1px dashed #ccd9e8; border-radius: 13px; text-align: center; font-size: .78rem; line-height: 1.55; }
+.reserve-history { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; }
+.reserve-history > summary { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px; color: var(--blue); cursor: pointer; list-style: none; font-size: .72rem; font-weight: 800; }
+.reserve-history > summary::-webkit-details-marker { display: none; }
+.reserve-history > summary b { min-width: 24px; height: 24px; display: grid; place-items: center; color: var(--blue); border-radius: 50%; background: var(--blue-soft); font-size: .6rem; }
+.reserve-history-content { padding: 0 12px 8px; border-top: 1px solid var(--line); }
 .reserve-history ul { list-style: none; margin: 0; padding: 0; }
 .reserve-history li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; gap: 7px; min-height: 54px; border-bottom: 1px solid #edf1f6; }
 .reserve-history li:last-child { border-bottom: 0; }
@@ -1071,6 +1080,60 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+/* Fixed monthly costs keep the dense, glanceable ledger language used across Koru. */
+.fixed-expenses-panel { overflow: hidden; }
+.fixed-expenses-content { padding: 0 24px 24px; border-top: 1px solid var(--line); }
+.fixed-expenses-overview { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 16px; margin-top: 20px; padding: 18px; border: 1px solid #c9dcf4; border-radius: 17px; background: linear-gradient(145deg, #f8fbff, #edf5ff); }
+.fixed-expenses-total { grid-row: 1 / 3; display: flex; flex-direction: column; justify-content: center; padding-right: 16px; border-right: 1px solid var(--line); }
+.fixed-expenses-total span, .fixed-expenses-total small, .fixed-expenses-figures span { color: var(--muted); font-size: .65rem; }
+.fixed-expenses-total strong { margin: 7px 0; font-family: Georgia, serif; font-size: 1.8rem; font-weight: 400; letter-spacing: -.04em; }
+.fixed-expenses-figures { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.fixed-expenses-figures > div { min-width: 0; padding: 10px; border: 1px solid rgba(185, 207, 234, .8); border-radius: 11px; background: rgba(255,255,255,.65); }
+.fixed-expenses-figures span, .fixed-expenses-figures strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fixed-expenses-figures strong { margin-top: 5px; font-family: Georgia, serif; font-size: .84rem; font-weight: 400; }
+.fixed-expenses-meter > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font-size: .65rem; }
+.fixed-expenses-meter b { color: var(--blue); }
+.fixed-expenses-track { height: 6px; overflow: hidden; margin-top: 7px; border-radius: 99px; background: #d7e6f8; }
+.fixed-expenses-track span { display: block; height: 100%; border-radius: inherit; background: var(--blue); transition: width .3s ease; }
+.fixed-expenses-meter p { margin: 8px 0 0; color: var(--muted); font-size: .61rem; line-height: 1.45; }
+.fixed-expenses-overview.over-limit { border-color: rgba(205, 62, 82, .35); background: linear-gradient(145deg, #fffafa, #fff1f3); }
+.fixed-expenses-overview.over-limit .fixed-expenses-track span, .fixed-expenses-overview.over-limit .fixed-expenses-meter b { color: var(--red); background: var(--red); }
+.fixed-expenses-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; }
+.fixed-expenses-toolbar strong, .fixed-expenses-toolbar span { display: block; }
+.fixed-expenses-toolbar strong { font-size: .76rem; }
+.fixed-expenses-toolbar span { margin-top: 3px; color: var(--muted); font-size: .61rem; }
+.fixed-expenses-toolbar .secondary-button { flex: 0 0 auto; }
+.fixed-expense-form { margin-top: 15px; padding: 17px; border: 1px solid #d3e1f2; border-radius: 15px; background: #f8fbff; }
+.fixed-expense-form-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.fixed-expense-form-heading span, .fixed-expense-form-heading strong { display: block; }
+.fixed-expense-form-heading span { margin-bottom: 3px; color: var(--blue); font-size: .58rem; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; }
+.fixed-expense-form-heading strong { font-family: Georgia, serif; font-size: 1.05rem; font-weight: 400; }
+.fixed-expense-form-heading button { padding: 4px; color: var(--muted); border: 0; background: transparent; font-size: .65rem; font-weight: 800; }
+.fixed-expense-save { width: 100%; margin-top: 16px; }
+.fixed-expense-save svg { width: 16px; }
+.fixed-expenses-empty { min-height: 130px; display: grid; place-items: center; align-content: center; gap: 8px; margin-top: 15px; padding: 18px; color: var(--muted); border: 1px dashed #cbd9e9; border-radius: 14px; text-align: center; }
+.fixed-expenses-empty > svg { color: var(--blue); }
+.fixed-expenses-empty p { max-width: 340px; margin: 0; font-size: .69rem; line-height: 1.5; }
+.fixed-expenses-empty button { color: var(--blue); border: 0; background: transparent; font-size: .67rem; font-weight: 800; }
+.fixed-expense-list { display: grid; gap: 8px; margin: 15px 0 0; padding: 0; list-style: none; }
+.fixed-expense-list > li { min-width: 0; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 13px; background: rgba(255,255,255,.82); }
+.fixed-expense-list > li.paused { opacity: .58; }
+.fixed-expense-date { width: 40px; height: 40px; display: grid; place-items: center; align-content: center; color: var(--blue); border-radius: 11px; background: var(--blue-soft); }
+.fixed-expense-date b, .fixed-expense-date small { display: block; line-height: 1; }
+.fixed-expense-date b { font-family: Georgia, serif; font-size: .9rem; font-weight: 400; }
+.fixed-expense-date small { margin-top: 3px; font-size: .42rem; font-weight: 800; letter-spacing: .08em; }
+.fixed-expense-copy { min-width: 0; }
+.fixed-expense-copy strong, .fixed-expense-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fixed-expense-copy strong { font-size: .72rem; }
+.fixed-expense-copy small { margin-top: 4px; color: var(--muted); font-size: .58rem; }
+.fixed-expense-amount { font-family: Georgia, serif; font-size: .83rem; font-weight: 400; white-space: nowrap; }
+.fixed-expense-actions { grid-column: 2 / -1; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+.fixed-expense-actions > button:first-child { min-height: 34px; padding: 0 10px; color: var(--blue); border: 1px solid #c5d9f3; border-radius: 9px; background: var(--blue-soft); font-size: .6rem; font-weight: 800; }
+.fixed-expense-actions .icon-button { width: 34px; height: 34px; color: var(--blue); }
+.fixed-expense-actions .fixed-expense-delete { color: var(--red); }
+.fixed-expense-actions .fixed-expense-delete.confirming { width: auto; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; color: white; background: var(--red); font-size: .55rem; font-weight: 800; }
+.fixed-expense-actions svg { width: 14px; }
+
 /* Monthly savings plan uses the same form and panel language as loans. */
 .future-savings-content { padding: 0 24px 24px; }
 .future-savings-content .field small { color: var(--muted); font-size: .78rem; }
@@ -1087,10 +1150,52 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .savings-budget-track span { display: block; height: 100%; border-radius: inherit; background: var(--blue); transition: width .25s ease; }
 .savings-budget-meter p { margin: 10px 0 0; color: var(--muted); font-size: .74rem; line-height: 1.45; }
 .savings-budget-meter p strong { color: var(--ink); }
+.future-savings-content form > .primary-button { width: 100%; min-height: 50px; }
+.savings-history-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 14px; }
+.savings-history-toolbar strong, .savings-history-toolbar span { display: block; }
+.savings-history-toolbar strong { font-size: .75rem; }
+.savings-history-toolbar span { margin-top: 3px; color: var(--muted); font-size: .61rem; }
+.savings-history-toolbar button { min-height: 38px; display: inline-flex; align-items: center; gap: 7px; padding: 0 11px; color: var(--blue); border: 1px solid #c5d9f3; border-radius: 10px; background: var(--blue-soft); font-size: .65rem; font-weight: 800; }
+.savings-history-toolbar button.active { color: white; border-color: var(--blue); background: var(--blue); }
+.savings-history-toolbar button b { min-width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.18); font-size: .55rem; }
+.savings-history { margin-bottom: 18px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; }
+.savings-history > p { margin: 0; padding: 18px; color: var(--muted); font-size: .7rem; text-align: center; }
+.savings-history ul { margin: 0; padding: 0; list-style: none; }
+.savings-history li { min-height: 57px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 13px; border-bottom: 1px solid var(--line); }
+.savings-history li:last-child { border-bottom: 0; }
+.savings-history li span { min-width: 0; }
+.savings-history li strong, .savings-history li small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.savings-history li strong { font-size: .7rem; text-transform: capitalize; }
+.savings-history li small { margin-top: 4px; color: var(--muted); font-size: .56rem; }
+.savings-history li > b { color: var(--green); font-family: Georgia, serif; font-size: .82rem; font-weight: 400; white-space: nowrap; }
+.savings-history li > b.negative { color: var(--red); }
 .savings-method { margin-top: 20px; color: var(--muted); font-size: .8rem; }
 .savings-method summary { cursor: pointer; }
 .savings-method p { margin: 10px 0; line-height: 1.6; }
 @media (max-width: 620px) {
+  .fixed-expenses-content { padding: 0 17px 20px; }
+  .fixed-expenses-overview { grid-template-columns: 1fr; gap: 13px; padding: 15px; }
+  .fixed-expenses-total { grid-row: auto; padding: 0 0 13px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .fixed-expenses-total strong { font-size: 1.55rem; }
+  .fixed-expenses-toolbar { align-items: end; }
+  .fixed-expenses-toolbar span { max-width: 190px; line-height: 1.4; }
+  .fixed-expense-form { padding: 14px; }
+  .fixed-expense-list > li { grid-template-columns: 38px minmax(0, 1fr) auto; gap: 8px; }
+  .fixed-expense-date { width: 38px; height: 38px; }
   .future-savings-content { padding: 0 18px 20px; }
-  .savings-results { grid-template-columns: 1fr; }
+  .savings-results { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .savings-results article { min-height: 145px; gap: 7px; padding: 12px; }
+  .savings-results article > span, .savings-results small { font-size: .64rem; line-height: 1.4; }
+  .savings-results strong { font-size: 1.05rem; }
+  .savings-history-toolbar { align-items: end; }
+  .savings-history-toolbar span { max-width: 180px; line-height: 1.35; }
 }
+
+:root[data-theme="dark"] .fixed-expenses-overview,
+:root[data-theme="dark"] .fixed-expense-form { background: linear-gradient(145deg, #111e2e, #0c1928); }
+:root[data-theme="dark"] .fixed-expenses-overview.over-limit { background: linear-gradient(145deg, #2a1720, #1c1119); }
+:root[data-theme="dark"] .fixed-expenses-figures > div,
+:root[data-theme="dark"] .fixed-expense-list > li { background: #0d1826; }
+:root[data-theme="dark"] .fixed-expense-actions > button:first-child,
+:root[data-theme="dark"] .savings-history-toolbar button { border-color: #36577d; background: #142238; }
+:root[data-theme="dark"] .savings-history-toolbar button.active { color: #061221; border-color: var(--blue); background: var(--blue); }

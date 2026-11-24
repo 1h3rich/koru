@@ -1,11 +1,13 @@
-import type { FutureSavingsPlan, Loan, ReserveMovement, Transaction, TransactionFormDraftRecord } from './types'
+import type { FixedExpense, FutureSavingsPlan, Loan, ReserveMovement, Transaction, TransactionFormDraftRecord } from './types'
 import { buildPurchaseBatch, getPurchaseBatchSources, withoutPurchaseBatchImages } from './purchaseBatch'
 import { validFutureSavingsPlan } from './futureSavings'
+import { validFixedExpense } from './fixedExpenses'
 
 const TRANSACTIONS_KEY = 'koru.transactions.v1'
 const RESERVES_KEY = 'koru.reserves.v1'
 const LOANS_KEY = 'koru.loans.v1'
 const FUTURE_SAVINGS_KEY = 'koru.future-savings.v1'
+const FIXED_EXPENSES_KEY = 'koru.fixed-expenses.v1'
 const TRANSACTION_DRAFT_KEY = 'koru.transaction-draft.v1'
 const DELETIONS_KEY = 'koru.deletions.v1'
 const SESSION_TOKEN_KEY = 'koru.cloud.token.v1'
@@ -20,6 +22,7 @@ export interface CloudSnapshot {
   transactions: Transaction[]
   reserveMovements: ReserveMovement[]
   loans: Loan[]
+  fixedExpenses: FixedExpense[]
   deletions?: DeletionLog
   updatedAt: number
   futureSavings?: FutureSavingsPlan
@@ -30,6 +33,7 @@ interface DeletionLog {
   transactions: Record<string, number>
   reserveMovements: Record<string, number>
   loans: Record<string, number>
+  fixedExpenses: Record<string, number>
 }
 
 interface EncryptedPayload {
@@ -133,7 +137,7 @@ async function callSync(body: Record<string, unknown>, token?: string): Promise<
 }
 
 function emptyDeletions(): DeletionLog {
-  return { transactions: {}, reserveMovements: {}, loans: {} }
+  return { transactions: {}, reserveMovements: {}, loans: {}, fixedExpenses: {} }
 }
 
 function normalizeSnapshot(snapshot: Partial<CloudSnapshot>): CloudSnapshot {
@@ -141,10 +145,12 @@ function normalizeSnapshot(snapshot: Partial<CloudSnapshot>): CloudSnapshot {
     transactions: compactTransactions(Array.isArray(snapshot.transactions) ? snapshot.transactions : []),
     reserveMovements: Array.isArray(snapshot.reserveMovements) ? snapshot.reserveMovements : [],
     loans: Array.isArray(snapshot.loans) ? snapshot.loans : [],
+    fixedExpenses: Array.isArray(snapshot.fixedExpenses) ? snapshot.fixedExpenses.filter(validFixedExpense) : [],
     deletions: {
       transactions: snapshot.deletions?.transactions ?? {},
       reserveMovements: snapshot.deletions?.reserveMovements ?? {},
       loans: snapshot.deletions?.loans ?? {},
+      fixedExpenses: snapshot.deletions?.fixedExpenses ?? {},
     },
     updatedAt: snapshot.updatedAt ?? Date.now(),
     futureSavings: validFutureSavingsPlan(snapshot.futureSavings) ? snapshot.futureSavings : undefined,
@@ -154,7 +160,7 @@ function normalizeSnapshot(snapshot: Partial<CloudSnapshot>): CloudSnapshot {
 
 function mergeDeletionLogs(first?: DeletionLog, second?: DeletionLog): DeletionLog {
   const merged = emptyDeletions()
-  for (const key of ['transactions', 'reserveMovements', 'loans'] as const) {
+  for (const key of ['transactions', 'reserveMovements', 'loans', 'fixedExpenses'] as const) {
     for (const [id, deletedAt] of Object.entries({ ...(first?.[key] ?? {}), ...(second?.[key] ?? {}) })) {
       merged[key][id] = Math.max(first?.[key]?.[id] ?? 0, second?.[key]?.[id] ?? 0, deletedAt)
     }
@@ -183,6 +189,7 @@ function mergeSnapshots(first: CloudSnapshot, second: CloudSnapshot): CloudSnaps
     transactions: mergeCollection(first.transactions, second.transactions, deletions.transactions),
     reserveMovements: mergeCollection(first.reserveMovements, second.reserveMovements, deletions.reserveMovements),
     loans: mergeCollection(first.loans, second.loans, deletions.loans),
+    fixedExpenses: mergeCollection(first.fixedExpenses, second.fixedExpenses, deletions.fixedExpenses),
     deletions,
     updatedAt: Math.max(first.updatedAt, second.updatedAt, Date.now()),
     futureSavings: (second.futureSavings?.updatedAt ?? -1) > (first.futureSavings?.updatedAt ?? -1) ? second.futureSavings : first.futureSavings,
@@ -204,6 +211,7 @@ function localSnapshot(): CloudSnapshot {
     transactions: loadTransactions(),
     reserveMovements: loadReserveMovements(),
     loans: loadLoans(),
+    fixedExpenses: loadFixedExpenses(),
     deletions: loadDeletions(),
     updatedAt: Date.now(),
     futureSavings: loadFutureSavingsPlan() ?? undefined,
@@ -215,6 +223,7 @@ function saveSnapshotLocally(snapshot: CloudSnapshot): void {
   saveTransactions(snapshot.transactions)
   saveReserveMovements(snapshot.reserveMovements)
   saveLoans(snapshot.loans ?? [])
+  saveFixedExpenses(snapshot.fixedExpenses ?? [])
   localStorage.setItem(DELETIONS_KEY, JSON.stringify(snapshot.deletions ?? emptyDeletions()))
   if (snapshot.futureSavings) localStorage.setItem(FUTURE_SAVINGS_KEY, JSON.stringify(snapshot.futureSavings))
   if (snapshot.transactionDraft) localStorage.setItem(TRANSACTION_DRAFT_KEY, JSON.stringify(snapshot.transactionDraft))
@@ -297,14 +306,15 @@ export async function syncFromCloud(): Promise<CloudSnapshot | null> {
   return synchronizeSnapshot(localSnapshot(), credentials.token, credentials.encryptionKey)
 }
 
-export function syncToCloud(transactions: Transaction[], reserveMovements: ReserveMovement[], loans: Loan[], futureSavings = loadFutureSavingsPlan(), transactionDraft = loadTransactionDraftRecord()): Promise<void> {
+export function syncToCloud(transactions: Transaction[], reserveMovements: ReserveMovement[], loans: Loan[], futureSavings = loadFutureSavingsPlan(), transactionDraft = loadTransactionDraftRecord(), fixedExpenses = loadFixedExpenses()): Promise<void> {
   const previous = localSnapshot()
   const now = Date.now()
   const deletions = mergeDeletionLogs(previous.deletions, emptyDeletions())
   recordMissingIds(previous.transactions, transactions, deletions.transactions, now)
   recordMissingIds(previous.reserveMovements, reserveMovements, deletions.reserveMovements, now)
   recordMissingIds(previous.loans, loans, deletions.loans, now)
-  const snapshot: CloudSnapshot = { transactions: compactTransactions(transactions), reserveMovements, loans, deletions, updatedAt: now, futureSavings: futureSavings ?? undefined, transactionDraft: transactionDraft ?? undefined }
+  recordMissingIds(previous.fixedExpenses, fixedExpenses, deletions.fixedExpenses, now)
+  const snapshot: CloudSnapshot = { transactions: compactTransactions(transactions), reserveMovements, loans, fixedExpenses, deletions, updatedAt: now, futureSavings: futureSavings ?? undefined, transactionDraft: transactionDraft ?? undefined }
   saveSnapshotLocally(snapshot)
 
   const credentials = sessionCredentials()
@@ -433,4 +443,17 @@ export function loadLoans(): Loan[] {
 
 export function saveLoans(loans: Loan[]): void {
   localStorage.setItem(LOANS_KEY, JSON.stringify(loans))
+}
+
+export function loadFixedExpenses(): FixedExpense[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FIXED_EXPENSES_KEY) ?? '[]') as unknown
+    return Array.isArray(saved) ? saved.filter(validFixedExpense) : []
+  } catch {
+    return []
+  }
+}
+
+export function saveFixedExpenses(expenses: FixedExpense[]): void {
+  localStorage.setItem(FIXED_EXPENSES_KEY, JSON.stringify(expenses.filter(validFixedExpense)))
 }

@@ -1,10 +1,11 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { CryptoIcon, EditIcon, MinusIcon, PlusIcon, SavingsIcon, TrashIcon } from './Icons'
+import { CalendarIcon, CryptoIcon, EditIcon, MinusIcon, PlusIcon, SavingsIcon, TrashIcon } from './Icons'
 import { DEFAULT_CRYPTO_ASSET, getCryptoAllocation, getCryptoFees, getReserveTotals, normalizeCryptoAsset } from './finance'
 import type { ReserveAction, ReserveMovement, ReserveType } from './types'
 
 const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
 const dateFormatter = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' })
+const inputDateFormatter = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
 const suggestedCryptoAssets = ['USDT', 'BTC', 'ETH', 'SOL', 'XRP']
 
 function getLocalDate() {
@@ -182,7 +183,7 @@ export default function ReservesPanel({ movements, onAdd, onDelete, onUpdate }: 
 
           <div className="field reserve-date-field">
             <label htmlFor="reserve-date">Fecha</label>
-            <input id="reserve-date" type="date" value={movementDate} onChange={(event) => setMovementDate(event.target.value)} required />
+            <div className="date-picker-shell reserve-date-picker"><span>{inputDateFormatter.format(new Date(`${movementDate}T12:00:00`))}</span><CalendarIcon /><input id="reserve-date" type="date" value={movementDate} onChange={(event) => setMovementDate(event.target.value)} required /></div>
           </div>
 
           {reserve === 'crypto' && action === 'transfer' ? (
@@ -316,13 +317,14 @@ export default function ReservesPanel({ movements, onAdd, onDelete, onUpdate }: 
             </section>
           )}
 
-          <div className="reserve-history">
-            <h3>Últimos movimientos</h3>
+          <details className="reserve-history">
+            <summary><span>Historial</span><b>{movements.length}</b></summary>
+            <div className="reserve-history-content">
             {movements.length === 0 ? (
               <p className="reserve-empty">Aquí aparecerán los cambios de ahorro y criptomonedas.</p>
             ) : (
               <ul>
-                {movements.slice(0, 5).map((movement) => {
+                {movements.map((movement) => {
                   const destination = normalizeCryptoAsset(movement.cryptoAsset)
                   const source = normalizeCryptoAsset(movement.cryptoSourceAsset)
                   const isTrade = movement.action === 'transfer'
@@ -354,7 +356,8 @@ export default function ReservesPanel({ movements, onAdd, onDelete, onUpdate }: 
                 })}
               </ul>
             )}
-          </div>
+            </div>
+          </details>
         </div>
       </div>
     </details>

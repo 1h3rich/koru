@@ -323,8 +323,8 @@ export default function LoansPanel({ loans, onSave, onDelete }: LoansPanelProps)
         )}
 
         {paidEntries.length > 0 && (
-          <section className="loan-paid-history" aria-labelledby="paid-loans-title">
-            <div className="loan-paid-heading"><span id="paid-loans-title">Pagados</span><small>Historial</small></div>
+          <details className="loan-paid-history">
+            <summary className="loan-paid-heading"><span>Historial de pagos</span><small>{paidEntries.length}</small></summary>
             <ul>
               {paidEntries.map((entry) => (
                 <li key={entry.id} title={`Pagado el ${formatDueDate(entry.repaidAt)}`}>
@@ -335,7 +335,7 @@ export default function LoansPanel({ loans, onSave, onDelete }: LoansPanelProps)
                 </li>
               ))}
             </ul>
-          </section>
+          </details>
         )}
       </div>
     </details>

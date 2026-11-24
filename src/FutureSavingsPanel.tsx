@@ -1,10 +1,11 @@
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import DecimalInput from './DecimalInput'
 import { SavingsIcon } from './Icons'
-import { calculateFutureSavings } from './futureSavings'
+import { calculateFutureSavings, getMonthlySavingsHistory } from './futureSavings'
 import type { FutureSavingsPlan, Transaction } from './types'
 
 const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
+const monthFormatter = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' })
 interface Props {
   transactions: Transaction[]
   plan: FutureSavingsPlan | null
@@ -16,7 +17,10 @@ export default function FutureSavingsPanel({ transactions, plan, onSave }: Props
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
   const [draft, setDraft] = useState<FutureSavingsPlan>(plan ?? { monthlySaving: 0, incomeOverride: null, pendingExpenses: 0, updatedAt: 0 })
   const [message, setMessage] = useState('')
+  const [showHistory, setShowHistory] = useState(false)
   const budget = calculateFutureSavings(transactions, draft, month)
+  const history = useMemo(() => getMonthlySavingsHistory(transactions), [transactions])
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const savingsRate = budget.income > 0 ? Math.min(100, (budget.saving / budget.income) * 100) : 0
   const spentRate = budget.spendingLimit > 0 ? Math.min(100, (budget.expenses / budget.spendingLimit) * 100) : budget.expenses > 0 ? 100 : 0
   function save(event: FormEvent) {
@@ -48,6 +52,15 @@ export default function FutureSavingsPanel({ transactions, plan, onSave }: Props
           <div className="savings-budget-track" aria-label={`${Math.round(spentRate)}% del presupuesto de gasto utilizado`}><span style={{ width: `${spentRate}%` }} /></div>
           <p>Tu objetivo de ahorro equivale al <strong>{Math.round(savingsRate)}%</strong> de los ingresos de este mes.</p>
         </div>
+        <div className="savings-history-toolbar">
+          <div><strong>Resultado de cada mes</strong><span>Ingresos menos gastos registrados</span></div>
+          <button type="button" className={showHistory ? 'active' : ''} onClick={() => setShowHistory((current) => !current)}>Historial <b>{history.length}</b></button>
+        </div>
+        {showHistory && (
+          <div className="savings-history" aria-label="Historial mensual de ahorro">
+            {history.length === 0 ? <p>Aún no hay meses con movimientos.</p> : <ul>{history.map((entry) => <li key={entry.month}><span><strong>{monthFormatter.format(new Date(`${entry.month}-01T12:00:00`))}</strong><small>{entry.month === currentMonth ? 'En curso · ahorro real' : `${currency.format(entry.income)} ingresados · ${currency.format(entry.expenses)} gastados`}</small></span><b className={entry.savings < 0 ? 'negative' : ''} aria-label={`Ahorro real ${currency.format(entry.savings)}`}>{entry.savings >= 0 ? '+' : '−'}{currency.format(Math.abs(entry.savings))}</b></li>)}</ul>}
+          </div>
+        )}
         {budget.remaining < 0 && <p className="form-error" role="status">Te faltan {currency.format(-budget.remaining)} para cumplir este plan.</p>}
         <button type="submit" className="primary-button">Guardar plan</button>
         {message && <p role="status" className="purchase-photo-status">{message}</p>}
