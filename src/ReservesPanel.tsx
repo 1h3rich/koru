@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { CalendarIcon, CryptoIcon, EditIcon, MinusIcon, PlusIcon, SavingsIcon, TrashIcon } from './Icons'
 import { DEFAULT_CRYPTO_ASSET, getCryptoAllocation, getCryptoFees, getReserveTotals, normalizeCryptoAsset } from './finance'
+import { parseMoneyInput } from './money'
 import type { ReserveAction, ReserveMovement, ReserveType } from './types'
 
 const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
@@ -57,8 +58,8 @@ export default function ReservesPanel({ movements, onAdd, onDelete, onUpdate }: 
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const numericAmount = Number(amount.replace(',', '.'))
-    const numericFee = fee.trim() ? Number(fee.replace(',', '.')) : 0
+    const numericAmount = parseMoneyInput(amount)
+    const numericFee = fee.trim() ? parseMoneyInput(fee) : 0
 
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       setError('Introduce un importe mayor que cero.')

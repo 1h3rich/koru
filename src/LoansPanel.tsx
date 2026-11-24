@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { CalendarIcon, CheckIcon, EditIcon, HandCoinsIcon, PeopleIcon, PlusIcon, TrashIcon } from './Icons'
 import { getLoanOutstanding, getLoanParticipants, getPaidLoanEntries } from './finance'
+import { parseMoneyInput } from './money'
 import type { Loan, LoanParticipant } from './types'
 
 const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
@@ -81,7 +82,7 @@ export default function LoansPanel({ loans, onSave, onDelete }: LoansPanelProps)
   const orderedLoans = useMemo(() => loans.filter((loan) => getLoanOutstanding(loan) > 0).sort((a, b) => b.createdAt - a.createdAt), [loans])
   const paidEntries = useMemo(() => getPaidLoanEntries(loans), [loans])
   const outstanding = loans.reduce((sum, loan) => sum + getLoanOutstanding(loan), 0)
-  const draftTotal = draft.participants.reduce((sum, participant) => sum + (Number(participant.amount.replace(',', '.')) || 0), 0)
+  const draftTotal = draft.participants.reduce((sum, participant) => sum + (parseMoneyInput(participant.amount) || 0), 0)
 
   function startAdd() {
     setEditing(null)
@@ -121,7 +122,7 @@ export default function LoansPanel({ loans, onSave, onDelete }: LoansPanelProps)
     const participants = filledParticipants.map((participant) => ({
       id: participant.id,
       name: participant.name.trim(),
-      amount: Number(participant.amount.replace(',', '.')),
+      amount: parseMoneyInput(participant.amount),
       status: participant.status,
       repaidAt: participant.repaidAt,
     }))

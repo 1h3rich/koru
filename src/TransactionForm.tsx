@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from '
 import DecimalInput from './DecimalInput'
 import { ArrowDownIcon, ArrowUpIcon, CalendarIcon, CameraIcon, ImageIcon, PlusIcon, ReceiptIcon, TrashIcon } from './Icons'
 import { readPurchaseAmountsWithGemini, readReceiptWithGemini } from './gemini'
+import { parseMoneyInput } from './money'
 import { addManualPurchaseBatchValue, buildPurchaseBatch, getPurchaseBatchSources, removePurchaseBatchImage, updatePurchaseBatchValue } from './purchaseBatch'
 import { compressPurchaseImage, compressReceiptImage, parseLargePurchaseAmounts } from './receipt'
 import { createTransactionFormDraft, hasTransactionFormDraft } from './transactionDraft'
@@ -271,7 +272,7 @@ export default function TransactionForm({ onAdd, savedDraft, onDraftChange }: Tr
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const amount = Number(draft.amount.replace(',', '.'))
+    const amount = parseMoneyInput(draft.amount)
     if (!Number.isFinite(amount) || amount <= 0) {
       setError('Introduce un importe mayor que cero.')
       return
@@ -437,7 +438,7 @@ export default function TransactionForm({ onAdd, savedDraft, onDraftChange }: Tr
                     <div key={`${index}-${purchaseBatch.values.length}`}>
                       <label htmlFor={`purchase-value-${index}`}>Valor {index + 1}</label>
                       <div className="amount-input"><span>€</span><input id={`purchase-value-${index}`} inputMode="text" defaultValue={String(value).replace('.', ',')} onChange={(event) => {
-                        changeBatchValue(index, Number(event.target.value.replace(',', '.')) || 0)
+                        changeBatchValue(index, parseMoneyInput(event.target.value) || 0)
                       }} /></div>
                       <button type="button" className="icon-button" onClick={() => changeBatchValue(index)} aria-label={`Quitar valor ${index + 1}`}><TrashIcon /></button>
                     </div>

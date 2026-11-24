@@ -1,4 +1,5 @@
 import { useState, type InputHTMLAttributes } from 'react'
+import { parseMoneyInput } from './money'
 
 interface DecimalInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'defaultValue' | 'onChange' | 'type' | 'inputMode' | 'pattern'> {
   value: number
@@ -6,7 +7,7 @@ interface DecimalInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
 }
 
 function numericValue(text: string): number {
-  const value = Number(text.replace(',', '.'))
+  const value = parseMoneyInput(text)
   return Number.isFinite(value) ? value : 0
 }
 

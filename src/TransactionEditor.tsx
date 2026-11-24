@@ -3,6 +3,7 @@ import DecimalInput from './DecimalInput'
 import { CameraIcon, CheckIcon, ImageIcon, PlusIcon, ReceiptIcon, TrashIcon } from './Icons'
 import { addManualPurchaseBatchValue, getPurchaseBatchSources, removePurchaseBatchImage, updatePurchaseBatchValue } from './purchaseBatch'
 import { compressPurchaseImage } from './receipt'
+import { parseMoneyInput } from './money'
 import type { PurchaseBatch } from './types'
 import type { ReceiptItem, Transaction, TransactionType } from './types'
 
@@ -82,7 +83,7 @@ export default function TransactionEditor({ transaction, onSave, onClose }: Tran
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    const nextAmount = Number(amount.replace(',', '.'))
+    const nextAmount = parseMoneyInput(amount)
     if (!Number.isFinite(nextAmount) || nextAmount <= 0) return
     const saved = onSave({
       ...draft,
@@ -130,7 +131,7 @@ export default function TransactionEditor({ transaction, onSave, onClose }: Tran
             <div className="editor-purchase-batch">
               <div className="editor-receipt-title"><div><ImageIcon /><strong>Compras de las capturas</strong></div><div className="editor-batch-images">{getPurchaseBatchSources(draft.purchaseBatch).filter((source) => source.imageDataUrl).map((source, index) => <div key={source.id}><img src={source.imageDataUrl} alt={`Captura original ${index + 1}`} /><button type="button" className="icon-button" onClick={() => removePurchaseSource(source.id)} aria-label={`Borrar solo la imagen ${index + 1}`} title="Borrar solo imagen; conservar importes"><TrashIcon /></button></div>)}</div></div>
               <div className="purchase-values-list">
-                {draft.purchaseBatch.values.map((value, index) => <div key={`${index}-${draft.purchaseBatch!.values.length}`}><label htmlFor={`edit-purchase-value-${index}`}>Valor {index + 1}</label><div className="amount-input"><span>€</span><input id={`edit-purchase-value-${index}`} inputMode="text" defaultValue={String(value).replace('.', ',')} onChange={(event) => changePurchaseValue(index, Number(event.target.value.replace(',', '.')) || 0)} /></div><button type="button" className="icon-button" onClick={() => changePurchaseValue(index)}><TrashIcon /></button></div>)}
+                {draft.purchaseBatch.values.map((value, index) => <div key={`${index}-${draft.purchaseBatch!.values.length}`}><label htmlFor={`edit-purchase-value-${index}`}>Valor {index + 1}</label><div className="amount-input"><span>€</span><input id={`edit-purchase-value-${index}`} inputMode="text" defaultValue={String(value).replace('.', ',')} onChange={(event) => changePurchaseValue(index, parseMoneyInput(event.target.value) || 0)} /></div><button type="button" className="icon-button" onClick={() => changePurchaseValue(index)}><TrashIcon /></button></div>)}
                 <button type="button" className="purchase-add-value" onClick={addPurchaseValue}><PlusIcon /> Añadir valor manual</button>
                 <p>Total <strong>{currency.format(draft.purchaseBatch.values.reduce((sum, value) => sum + value, 0))}</strong></p>
               </div>
