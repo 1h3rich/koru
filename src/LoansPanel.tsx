@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { CalendarIcon, CheckIcon, EditIcon, HandCoinsIcon, PeopleIcon, PlusIcon, TrashIcon } from './Icons'
-import { getLoanOutstanding, getLoanParticipants } from './finance'
+import { getLoanOutstanding, getLoanParticipants, getPaidLoanEntries } from './finance'
 import type { Loan, LoanParticipant } from './types'
 
 const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
@@ -8,6 +8,13 @@ const dateFormatter = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 
 const monthFormatter = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' })
 
 type DueDateMode = 'none' | 'month' | 'date'
+
+interface PaymentConfirmation {
+  loanId: string
+  participantIds: string[]
+  label: string
+  amount: number
+}
 
 function dueDateMode(value: string): DueDateMode {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return 'date'
@@ -70,7 +77,9 @@ export default function LoansPanel({ loans, onSave, onDelete }: LoansPanelProps)
   const [editing, setEditing] = useState<Loan | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState('')
-  const orderedLoans = useMemo(() => [...loans].sort((a, b) => Number(a.status === 'repaid') - Number(b.status === 'repaid') || b.createdAt - a.createdAt), [loans])
+  const [paymentConfirmation, setPaymentConfirmation] = useState<PaymentConfirmation | null>(null)
+  const orderedLoans = useMemo(() => loans.filter((loan) => getLoanOutstanding(loan) > 0).sort((a, b) => b.createdAt - a.createdAt), [loans])
+  const paidEntries = useMemo(() => getPaidLoanEntries(loans), [loans])
   const outstanding = loans.reduce((sum, loan) => sum + getLoanOutstanding(loan), 0)
   const draftTotal = draft.participants.reduce((sum, participant) => sum + (Number(participant.amount.replace(',', '.')) || 0), 0)
 
@@ -140,17 +149,28 @@ export default function LoansPanel({ loans, onSave, onDelete }: LoansPanelProps)
     setDraft(emptyDraft())
   }
 
-  function markRepaid(loan: Loan) {
-    const participants = getLoanParticipants(loan)
-    const nextStatus = participants.some((participant) => participant.status === 'open') ? 'repaid' : 'open'
-    onSave(loanWithParticipants(loan, participants.map((participant) => ({ ...participant, status: nextStatus, repaidAt: nextStatus === 'repaid' ? localDate() : undefined }))))
+  function requestPayment(loan: Loan, participants: LoanParticipant[]) {
+    setPaymentConfirmation({
+      loanId: loan.id,
+      participantIds: participants.map((participant) => participant.id),
+      label: participants.length === 1 ? participants[0].name : `${participants.length} personas`,
+      amount: participants.reduce((sum, participant) => sum + participant.amount, 0),
+    })
   }
 
-  function toggleParticipant(loan: Loan, participantId: string) {
-    const participants = getLoanParticipants(loan).map((participant) => participant.id === participantId
-      ? { ...participant, status: participant.status === 'open' ? 'repaid' as const : 'open' as const, repaidAt: participant.status === 'open' ? localDate() : undefined }
+  function confirmPayment() {
+    if (!paymentConfirmation) return
+    const loan = loans.find((current) => current.id === paymentConfirmation.loanId)
+    if (!loan) {
+      setPaymentConfirmation(null)
+      return
+    }
+    const paidIds = new Set(paymentConfirmation.participantIds)
+    const participants = getLoanParticipants(loan).map((participant) => paidIds.has(participant.id) && participant.status === 'open'
+      ? { ...participant, status: 'repaid' as const, repaidAt: localDate() }
       : participant)
     onSave(loanWithParticipants(loan, participants))
+    setPaymentConfirmation(null)
   }
 
   return (
@@ -253,7 +273,7 @@ export default function LoansPanel({ loans, onSave, onDelete }: LoansPanelProps)
           </form>
         )}
 
-        {orderedLoans.length === 0 && !showForm ? (
+        {orderedLoans.length === 0 && paidEntries.length === 0 && !showForm ? (
           <div className="loan-empty"><PeopleIcon /><p>No tienes dinero prestado ahora mismo.</p><button type="button" onClick={startAdd}>Apuntar el primero</button></div>
         ) : (
           <div className="loan-list">
@@ -261,36 +281,61 @@ export default function LoansPanel({ loans, onSave, onDelete }: LoansPanelProps)
               const participants = getLoanParticipants(loan)
               const pendingParticipants = participants.filter((participant) => participant.status === 'open')
               const pendingAmount = getLoanOutstanding(loan)
-              const multiplePeople = participants.length > 1
+              const multiplePeople = pendingParticipants.length > 1
+              const confirmation = paymentConfirmation?.loanId === loan.id ? paymentConfirmation : null
               return (
-                <article className={`loan-item ${loan.status}`} key={loan.id}>
-                  <div className="loan-person"><span>{multiplePeople ? participants.length : participants[0]?.name.slice(0, 1).toUpperCase()}</span><div><strong>{multiplePeople ? `${participants.length} personas` : participants[0]?.name}</strong><small>{loan.reason || 'Sin motivo indicado'}</small></div></div>
-                  <div className="loan-amount"><strong>{currency.format(loan.status === 'repaid' ? loan.amount : pendingAmount)}</strong><span>{loan.status === 'repaid' ? multiplePeople ? 'Todo devuelto' : 'Devuelto' : loan.dueDate ? <><CalendarIcon /> Previsto {formatDueDate(loan.dueDate)}</> : 'Sin fecha prevista'}</span></div>
+                <article className="loan-item" key={loan.id}>
+                  <div className="loan-person"><span>{multiplePeople ? pendingParticipants.length : pendingParticipants[0]?.name.slice(0, 1).toUpperCase()}</span><div><strong>{multiplePeople ? `${pendingParticipants.length} personas` : pendingParticipants[0]?.name}</strong><small>{loan.reason || 'Sin motivo indicado'}</small></div></div>
+                  <div className="loan-amount"><strong>{currency.format(pendingAmount)}</strong><span>{loan.dueDate ? <><CalendarIcon /> Previsto {formatDueDate(loan.dueDate)}</> : 'Sin fecha prevista'}</span></div>
 
-                  {multiplePeople && (
+                  {participants.length > 1 && (
                     <div className="loan-participants" aria-label="Personas incluidas en el préstamo">
-                      {participants.map((participant) => (
-                        <div className={participant.status === 'repaid' ? 'repaid' : ''} key={participant.id}>
+                      {pendingParticipants.map((participant) => (
+                        <div key={participant.id}>
                           <span>{participant.name}</span>
                           <strong>{currency.format(participant.amount)}</strong>
-                          <button type="button" className={participant.status === 'open' ? 'participant-repaid-button' : ''} onClick={() => toggleParticipant(loan, participant.id)}>
-                            <CheckIcon /> {participant.status === 'open' ? 'Devuelto' : 'Reabrir'}
+                          <button type="button" className="participant-repaid-button" onClick={() => requestPayment(loan, [participant])}>
+                            <CheckIcon /> Devuelto
                           </button>
                         </div>
                       ))}
-                      <p>{pendingParticipants.length === 0 ? 'Todos han pagado' : `${pendingParticipants.length} ${pendingParticipants.length === 1 ? 'persona pendiente' : 'personas pendientes'}`}</p>
+                      <p>{pendingParticipants.length} {pendingParticipants.length === 1 ? 'persona pendiente' : 'personas pendientes'}</p>
+                    </div>
+                  )}
+
+                  {confirmation && (
+                    <div className="loan-payment-confirmation" role="alertdialog" aria-label={`Confirmar pago de ${confirmation.label}`}>
+                      <div><span>Confirmar pago</span><strong>{confirmation.label} · {currency.format(confirmation.amount)}</strong></div>
+                      <button type="button" onClick={() => setPaymentConfirmation(null)}>Cancelar</button>
+                      <button type="button" className="confirm-payment-button" onClick={confirmPayment}><CheckIcon /> Confirmar</button>
                     </div>
                   )}
 
                   <div className="loan-actions">
                     <button type="button" onClick={() => startEdit(loan)}><EditIcon /> Editar</button>
-                    <button type="button" className={loan.status === 'open' ? 'repaid-button' : ''} onClick={() => markRepaid(loan)}><CheckIcon /> {loan.status === 'open' ? multiplePeople ? 'Todos devueltos' : 'Devuelto' : multiplePeople ? 'Reabrir todos' : 'Reabrir'}</button>
+                    {(participants.length === 1 || pendingParticipants.length > 1) && <button type="button" className="repaid-button" onClick={() => requestPayment(loan, pendingParticipants)}><CheckIcon /> {multiplePeople ? 'Todos devueltos' : 'Devuelto'}</button>}
                     <button type="button" className="loan-delete" onClick={() => onDelete(loan.id)} aria-label={`Eliminar préstamo a ${loan.person}`}><TrashIcon /></button>
                   </div>
                 </article>
               )
             })}
           </div>
+        )}
+
+        {paidEntries.length > 0 && (
+          <section className="loan-paid-history" aria-labelledby="paid-loans-title">
+            <div className="loan-paid-heading"><span id="paid-loans-title">Pagados</span><small>Historial</small></div>
+            <ul>
+              {paidEntries.map((entry) => (
+                <li key={entry.id} title={`Pagado el ${formatDueDate(entry.repaidAt)}`}>
+                  <span className="loan-paid-check"><CheckIcon /></span>
+                  <span className="loan-paid-copy"><strong>{entry.name}</strong><i>·</i><span>{entry.reason || 'Sin motivo'}</span></span>
+                  <b>{currency.format(entry.amount)}</b>
+                  <em>Pagado</em>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </div>
     </details>

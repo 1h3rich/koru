@@ -19,6 +19,34 @@ export function getLoanOutstanding(loan: Loan): number {
     .reduce((sum, participant) => sum + participant.amount, 0)
 }
 
+export interface PaidLoanEntry {
+  id: string
+  loanId: string
+  participantId: string
+  name: string
+  reason: string
+  amount: number
+  repaidAt: string
+  updatedAt: number
+}
+
+export function getPaidLoanEntries(loans: Loan[]): PaidLoanEntry[] {
+  return loans
+    .flatMap((loan) => getLoanParticipants(loan)
+      .filter((participant) => participant.status === 'repaid')
+      .map((participant) => ({
+        id: `${loan.id}-${participant.id}`,
+        loanId: loan.id,
+        participantId: participant.id,
+        name: participant.name,
+        reason: loan.reason,
+        amount: participant.amount,
+        repaidAt: participant.repaidAt ?? loan.repaidAt ?? loan.lentDate,
+        updatedAt: loan.updatedAt ?? loan.createdAt,
+      })))
+    .sort((first, second) => second.repaidAt.localeCompare(first.repaidAt) || second.updatedAt - first.updatedAt)
+}
+
 function cents(value: number): number {
   return Math.round(value * 100)
 }
