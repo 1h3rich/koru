@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from 'react'
-import { EyeIcon } from './Icons'
 import { authenticateAndSync, InvalidPasswordError, requestPersistentStorage, type CloudSnapshot } from './storage'
 
 interface AuthScreenProps {
@@ -8,7 +7,6 @@ interface AuthScreenProps {
 
 export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -32,31 +30,19 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
 
   return (
     <main className="auth-page">
-      <span className="auth-background-mark" aria-hidden="true">K</span>
-      <section className="auth-shell" aria-labelledby="auth-title">
-        <h1 id="auth-title">Hola</h1>
-
+      <section className="auth-shell" aria-label="Acceso a Koru">
         <form onSubmit={handleSubmit} className="auth-form">
-          <label htmlFor="password">Contraseña</label>
-          <div className="password-field">
-            <input
-              id="password"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoFocus
-              required
-            />
-            <button
-              type="button"
-              className="icon-button field-button"
-              onClick={() => setShowPassword((visible) => !visible)}
-              aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-            >
-              <EyeIcon open={showPassword} />
-            </button>
-          </div>
+          <input
+            id="password"
+            type="password"
+            aria-label="Contraseña"
+            placeholder="Contraseña"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoFocus
+            required
+          />
 
           {error && <p className="form-error" role="alert">{error}</p>}
           <button type="submit" className="primary-button auth-submit" disabled={loading}>
