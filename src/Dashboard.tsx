@@ -69,13 +69,13 @@ export default function Dashboard({ transactions, onAdd, onConfirmIncomeReceipt,
     ? entriesInBudgetPeriod(transactions, historyMonth, cycle, today, (item) => item.date)
     : currentTransactions, [historyMonth, currentMonth, transactions, cycle, today, currentTransactions])
 
-  const totals = useMemo(() => {
-    const income = currentTransactions.filter((item) => item.type === 'income').reduce((sum, item) => sum + item.amount, 0)
-    const expense = currentTransactions.filter((item) => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0)
-    const loaned = loans.reduce((sum, loan) => sum + getLoanOutstanding(loan), 0)
-    const currentLoans = entriesInBudgetPeriod(loans, currentMonth, cycle, today, (item) => item.lentDate)
-    return { income, expense, loaned, balance: getAvailableBalance(currentTransactions, currentLoans) }
-  }, [currentTransactions, loans, currentMonth, cycle, today])
+  const cycleTotals = useMemo(() => {
+    const income = currentTransactions.filter((item) => item.type === 'income' && !item.balanceAdjustment).reduce((sum, item) => sum + item.amount, 0)
+    const expense = currentTransactions.filter((item) => item.type === 'expense' && !item.balanceAdjustment).reduce((sum, item) => sum + item.amount, 0)
+    return { income, expense }
+  }, [currentTransactions])
+  const balance = useMemo(() => getAvailableBalance(transactions, loans, today), [transactions, loans, today])
+  const loaned = useMemo(() => loans.reduce((sum, loan) => sum + getLoanOutstanding(loan), 0), [loans])
 
   const visibleTransactions = useMemo(
     () => selectedTransactions
@@ -87,7 +87,7 @@ export default function Dashboard({ transactions, onAdd, onConfirmIncomeReceipt,
   const reserveTotals = useMemo(() => getReserveTotals(reserveMovements), [reserveMovements])
   const paymentNotices = useMemo(() => getFixedExpenseNotices(fixedExpenses, today, monthlyBudget), [fixedExpenses, today, monthlyBudget])
 
-  const ratio = totals.income === 0 ? 0 : Math.min((totals.expense / totals.income) * 100, 100)
+  const ratio = cycleTotals.income === 0 ? 0 : Math.min((cycleTotals.expense / cycleTotals.income) * 100, 100)
 
   function openReserves(event: React.MouseEvent<HTMLAnchorElement>) {
     event.preventDefault()
@@ -139,8 +139,8 @@ export default function Dashboard({ transactions, onAdd, onConfirmIncomeReceipt,
             <h1 id="dashboard-title">Tus cuentas,<br /><em>claras.</em></h1>
           </div>
           <div className="balance-block">
-            <span>Disponible del ciclo</span>
-            <strong className={totals.balance < 0 ? 'negative' : ''}>{currency.format(totals.balance)}</strong>
+            <span>Disponible</span>
+            <strong className={balance < 0 ? 'negative' : ''}>{currency.format(balance)}</strong>
             <p>{currentTransactions.length === 0 ? 'Sin movimientos en este ciclo' : `${currentTransactions.length} ${currentTransactions.length === 1 ? 'movimiento registrado' : 'movimientos registrados'}`}</p>
             <a className="quick-add-button" href="#add-title">
               <PlusIcon /> Apuntar movimiento
@@ -157,13 +157,13 @@ export default function Dashboard({ transactions, onAdd, onConfirmIncomeReceipt,
           <article className="overview-card available-card">
             <div className="overview-card-heading">
               <div className="overview-icon"><WalletIcon /></div>
-              <span>Disponible del ciclo</span>
+              <span>Disponible</span>
             </div>
-            <strong className={totals.balance < 0 ? 'negative' : ''}>{currency.format(totals.balance)}</strong>
-            <small className="available-period">Desde el {dateFormatter.format(new Date(`${currentPeriod.start}T12:00:00`))}</small>
+            <strong className={balance < 0 ? 'negative' : ''}>{currency.format(balance)}</strong>
+            <small className="available-period">Ciclo desde el {dateFormatter.format(new Date(`${currentPeriod.start}T12:00:00`))}</small>
             <div className="overview-breakdown">
-              <span><i className="dot income-dot" /> Ingresos {currency.format(totals.income)}</span>
-              <span><i className="dot expense-dot" /> Gastos {currency.format(totals.expense)}</span>
+              <span><i className="dot income-dot" /> Ingresos {currency.format(cycleTotals.income)}</span>
+              <span><i className="dot expense-dot" /> Gastos {currency.format(cycleTotals.expense)}</span>
             </div>
             <div className="overview-progress-label"><span>Ingresos gastados</span><b>{Math.round(ratio)}%</b></div>
             <div className="progress-track"><span style={{ width: `${ratio}%` }} /></div>
@@ -185,7 +185,7 @@ export default function Dashboard({ transactions, onAdd, onConfirmIncomeReceipt,
               <div className="overview-icon"><PeopleIcon /></div>
               <span>Prestado</span>
             </div>
-            <strong>{currency.format(totals.loaned)}</strong>
+            <strong>{currency.format(loaned)}</strong>
             <p className="loaned-card-copy">Es tuyo, pero no está disponible hasta que te lo devuelvan.</p>
             <a href="#loans-panel" className="overview-manage-link" onClick={openLoans}>Ver préstamos <span aria-hidden="true">→</span></a>
           </article>
@@ -344,7 +344,7 @@ export default function Dashboard({ transactions, onAdd, onConfirmIncomeReceipt,
         </footer>
       </main>
       {editingTransaction && <TransactionEditor key={editingTransaction.id} transaction={editingTransaction} today={today} onSave={onUpdate} onClose={() => setEditingTransaction(null)} />}
-      {settingsOpen && <SettingsPanel theme={theme} onThemeChange={onThemeChange} currentBalance={totals.balance} onAdjustBalance={onAdjustBalance} transactions={transactions} reserveMovements={reserveMovements} loans={loans} fixedExpenses={fixedExpenses} monthlyBudget={monthlyBudget} futureSavings={futureSavings} onImportBackup={onImportBackup} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsPanel theme={theme} onThemeChange={onThemeChange} currentBalance={balance} onAdjustBalance={onAdjustBalance} transactions={transactions} reserveMovements={reserveMovements} loans={loans} fixedExpenses={fixedExpenses} monthlyBudget={monthlyBudget} futureSavings={futureSavings} onImportBackup={onImportBackup} onClose={() => setSettingsOpen(false)} />}
       {viewingPhoto && <div className="photo-viewer" role="dialog" aria-modal="true" aria-label="Foto ampliada" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewingPhoto(null) }}><button type="button" onClick={() => setViewingPhoto(null)} aria-label="Cerrar foto"><CloseIcon /></button><img src={viewingPhoto} alt="Foto ampliada de la compra" /></div>}
     </div>
   )

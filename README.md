@@ -21,7 +21,7 @@ Koru pide una contraseña de acceso en cada nueva sesión. Conserva datos en el 
 
 ## Meses, gastos fijos y ahorro a futuro
 
-El «Disponible del ciclo» suma los ingresos recibidos y resta los gastos registrados en el periodo activo. El corte configurable abre el mes siguiente el día 25 o el cuarto día hábil desde el final del mes. El corte hábil descuenta los fines de semana y los festivos que añadas. Los periodos anteriores se consultan en «Movimientos → Historial por periodo».
+«Disponible» conserva el saldo acumulado al cambiar de ciclo. El corte se aplica a los contadores de ingresos y gastos y a la vista de movimientos. El mes siguiente se abre el día 25 o el cuarto día hábil desde el final del mes. El corte hábil descuenta los fines de semana y los festivos que añadas. Los periodos anteriores se consultan en «Movimientos → Historial por periodo».
 
 En «Meses» puedes añadir cobros pendientes recurrentes, nóminas de un solo mes o ingresos extra. Al confirmar un cobro puedes crear un movimiento con la fecha y el importe reales o vincular uno anotado anteriormente. El resumen de Meses cuenta las nóminas y los recurrentes cobrados y resta los gastos registrados. Los ingresos extra cobrados cuentan para el disponible del ciclo.
 

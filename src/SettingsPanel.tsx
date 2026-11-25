@@ -69,7 +69,7 @@ export default function SettingsPanel({ theme, onThemeChange, currentBalance, on
         </div>
 
         <div className="settings-section balance-settings-section">
-          <div className="settings-section-heading"><strong>Ajustar disponible del ciclo</strong><span>Aplica una corrección al periodo actual.</span></div>
+          <div className="settings-section-heading"><strong>Ajustar saldo disponible</strong><span>Iguala el saldo con lo que tienes ahora.</span></div>
           <form className="balance-adjustment-card" onSubmit={submitBalance}>
             <div className="balance-adjustment-current"><span><WalletIcon /></span><div><small>Ahora en Koru</small><strong className={currentBalance < 0 ? 'negative' : ''}>{currency.format(currentBalance)}</strong></div></div>
             <label htmlFor="target-balance">Lo que tienes realmente ahora</label>

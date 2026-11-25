@@ -3,7 +3,7 @@ import AuthScreen from './AuthScreen'
 import type { BackupData } from './BackupPanel'
 import Dashboard from './Dashboard'
 import { calculateBalanceAdjustment, getAvailableBalance, normalizeCryptoAsset } from './finance'
-import { defaultMonthCycle, entriesInBudgetPeriod, getBudgetMonth, recordIncomeReceipt, undoIncomeReceipt } from './monthlyBudget'
+import { recordIncomeReceipt, undoIncomeReceipt } from './monthlyBudget'
 import { closeSession, isSessionOpen, loadFixedExpenses, loadFutureSavingsPlan, loadLoans, loadMonthlyBudget, loadReserveMovements, loadTransactionDraftRecord, loadTransactions, saveTransactionDraftRecord, syncFromCloud, syncToCloud, type CloudSnapshot } from './storage'
 import type { AppFeedback, ConfirmIncomeReceipt, FixedExpense, FutureSavingsPlan, Loan, MonthlyBudget, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionFormDraftRecord } from './types'
 
@@ -186,11 +186,7 @@ export default function App() {
 
   function adjustCurrentBalance(targetBalance: number) {
     const date = localDate()
-    const cycle = monthlyBudget.cycle ?? defaultMonthCycle
-    const month = getBudgetMonth(date, cycle)
-    const currentTransactions = entriesInBudgetPeriod(transactions, month, cycle, date, (item) => item.date)
-    const currentLoans = entriesInBudgetPeriod(loans, month, cycle, date, (item) => item.lentDate)
-    const adjustment = calculateBalanceAdjustment(getAvailableBalance(currentTransactions, currentLoans), targetBalance)
+    const adjustment = calculateBalanceAdjustment(getAvailableBalance(transactions, loans, date), targetBalance)
     if (!adjustment) {
       setFeedback({ id: ++feedbackSequence.current, message: 'El saldo ya coincide. No hace falta cambiar nada.', tone: 'success' })
       return true

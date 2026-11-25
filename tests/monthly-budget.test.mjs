@@ -114,16 +114,25 @@ test('Budget history uses the cutoff, recurring incomes and recorded expenses', 
   ])
 })
 
-test('Available balance starts at zero on the 25th while earlier entries remain in their period', () => {
+test('The 25th resets the period totals and carries forward the available balance', () => {
   const previous = { type: 'income', amount: 700, date: '2026-11-24' }
   const previousExpense = { type: 'expense', amount: 100, date: '2026-11-20' }
   const future = { type: 'income', amount: 800, date: '2026-11-26' }
-  const entries = [previous, previousExpense, future]
+  const adjustment = { type: 'income', amount: 70.38, date: '2026-11-23', balanceAdjustment: true }
+  const entries = [previous, previousExpense, future, adjustment]
+  const loans = [{ id: 'existing-loan', amount: 50, status: 'open', lentDate: '2026-11-23' }]
   const select = (month, today) => entriesInBudgetPeriod(entries, month, defaultMonthCycle, today, (item) => item.date)
-  assert.equal(getAvailableBalance(select('2026-11', '2026-11-24'), []), 600)
-  assert.equal(getAvailableBalance(select('2026-12', '2026-11-25'), []), 0)
-  assert.deepEqual(select('2026-11', '2026-11-25'), [previous, previousExpense])
+  assert.equal(getAvailableBalance(entries, loans, '2026-11-24'), 620.38)
+  assert.equal(getAvailableBalance(entries, loans, '2026-11-25'), 620.38)
+  assert.deepEqual(select('2026-12', '2026-11-25'), [])
+  assert.deepEqual(select('2026-11', '2026-11-25'), [previous, previousExpense, adjustment])
   assert.deepEqual(select('2026-12', '2026-11-26'), [future])
+  const addedInCurrentCycle = [
+    { type: 'income', amount: 238.09, date: '2026-11-25' },
+    { type: 'income', amount: 238.09, date: '2026-11-25' },
+    { type: 'expense', amount: 10, date: '2026-11-25' },
+  ]
+  assert.equal(getAvailableBalance([...entries, ...addedInCurrentCycle], loans, '2026-11-25'), 1086.56)
 })
 
 const extra = { ...payday25, id: 'extra', name: 'Ingreso extra', payday: 'extra', amount: 238.09 }

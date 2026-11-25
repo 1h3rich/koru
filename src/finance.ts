@@ -51,12 +51,16 @@ function cents(value: number): number {
   return Math.round(value * 100)
 }
 
-export function getAvailableBalance(transactions: Transaction[], loans: Loan[]): number {
+export function getAvailableBalance(transactions: Transaction[], loans: Loan[], today?: string): number {
   const transactionCents = transactions.reduce((total, transaction) => {
+    if (today && transaction.date > today) return total
     const signedAmount = transaction.type === 'income' ? cents(transaction.amount) : -cents(transaction.amount)
     return total + signedAmount
   }, 0)
-  const loanedCents = loans.reduce((total, loan) => total + cents(getLoanOutstanding(loan)), 0)
+  const loanedCents = loans.reduce((total, loan) => {
+    if (today && loan.lentDate > today) return total
+    return total + cents(getLoanOutstanding(loan))
+  }, 0)
   return (transactionCents - loanedCents) / 100
 }
 
