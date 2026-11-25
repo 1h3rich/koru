@@ -59,7 +59,11 @@ function validMonthlyIncomeSource(value: unknown): value is MonthlyIncomeSource 
 function validFixedExpensePayment(value: unknown): value is FixedExpensePayment {
   if (!value || typeof value !== 'object') return false
   const payment = value as Partial<FixedExpensePayment>
+  const { movement, transactionId } = payment
   return typeof payment.expenseId === 'string' && payment.expenseId.length > 0 && validMonthlyIncome(payment)
+    && (transactionId === undefined || (typeof transactionId === 'string' && transactionId.length > 0 && payment.amount !== null && movement === undefined))
+    && (movement === undefined || (movement !== null && payment.amount !== null && validDate(movement.date)
+      && typeof movement.category === 'string' && typeof movement.description === 'string' && validVersion(movement.createdAt)))
 }
 
 function mergeRecords<T extends { updatedAt: number }>(first: T[], second: T[], key: (record: T) => string) {
@@ -271,6 +275,39 @@ function activeFixedPaymentMonth(today: string, dueDay: number | null) {
 function firstTrackedMonth(expense: FixedExpense) {
   const date = new Date(expense.createdAt)
   return Number.isNaN(date.getTime()) ? '' : dayKey(date).slice(0, 7)
+}
+
+export function fixedPaymentMovementId(payment: FixedExpensePayment) {
+  return `fixed-payment:${payment.month}:${payment.expenseId}`
+}
+
+export function withFixedPaymentMovements(transactions: Transaction[], budget: MonthlyBudget): Transaction[] {
+  const movements = (budget.payments ?? []).flatMap((payment): Transaction[] => payment.amount === null || !payment.movement ? [] : [{
+    ...payment.movement,
+    id: fixedPaymentMovementId(payment),
+    type: 'expense',
+    amount: payment.amount,
+    updatedAt: payment.updatedAt,
+  }])
+  return movements.length ? [...movements, ...transactions] : transactions
+}
+
+export function getFixedPaymentCandidates(transactions: Transaction[], budget: MonthlyBudget, expense: FixedExpense, month: string, today: string) {
+  const linked = new Set((budget.payments ?? []).map((payment) => payment.transactionId))
+  const currentMonth = today.slice(0, 7)
+  const followingMonth = moveMonth(month, 1)
+  return transactions.filter((transaction) => {
+    const paidMonth = transaction.date.slice(0, 7)
+    return isBudgetExpense(transaction) && Math.round(transaction.amount * 100) === Math.round(expense.amount * 100)
+      && (paidMonth === month || (paidMonth === followingMonth && currentMonth === followingMonth))
+      && transaction.date <= today && !linked.has(transaction.id)
+  })
+}
+
+export function makeFixedPayment(expense: FixedExpense, month: string, date: string, updatedAt: number, existing?: Transaction): FixedExpensePayment {
+  const payment = { expenseId: expense.id, month, amount: Math.round((existing?.amount ?? expense.amount) * 100) / 100, updatedAt }
+  if (existing) return { ...payment, transactionId: existing.id }
+  return { ...payment, movement: { date, category: expense.category, description: expense.name, createdAt: updatedAt } }
 }
 
 export function summarizeFixedPayments(expenses: FixedExpense[], selectedMonth: string | null, today: string, budget: MonthlyBudget) {

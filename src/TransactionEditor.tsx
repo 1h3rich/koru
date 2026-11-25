@@ -17,10 +17,11 @@ interface TransactionEditorProps {
   transaction: Transaction
   today: string
   onSave: (transaction: Transaction) => boolean | void
+  fixedPayment?: boolean
   onClose: () => void
 }
 
-export default function TransactionEditor({ transaction, today, onSave, onClose }: TransactionEditorProps) {
+export default function TransactionEditor({ transaction, today, fixedPayment, onSave, onClose }: TransactionEditorProps) {
   const [draft, setDraft] = useState<Transaction>(() => ({
     ...transaction,
     receipt: transaction.receipt ? { ...transaction.receipt, items: transaction.receipt.items.map((item) => ({ ...item })) } : undefined,
@@ -107,12 +108,12 @@ export default function TransactionEditor({ transaction, today, onSave, onClose 
         <div className="editor-heading"><div><span>Corregir movimiento</span><h2 id="editor-title">Editar datos</h2></div><button type="button" onClick={onClose}>Cerrar</button></div>
         <form onSubmit={submit}>
           <div className="type-toggle compact-toggle">
-            {(['income', 'expense'] as TransactionType[]).map((type) => <button type="button" key={type} className={draft.type === type ? `active ${type}` : ''} aria-pressed={draft.type === type} disabled={type === 'expense' && !!draft.incomeReceipt} onClick={() => setDraft({ ...draft, type, category: categories[type][0] })}>{type === 'income' ? 'Ingreso' : 'Gasto'}</button>)}
+            {(['income', 'expense'] as TransactionType[]).map((type) => <button type="button" key={type} className={draft.type === type ? `active ${type}` : ''} aria-pressed={draft.type === type} disabled={type === 'income' ? fixedPayment : !!draft.incomeReceipt} onClick={() => setDraft({ ...draft, type, category: categories[type][0] })}>{type === 'income' ? 'Ingreso' : 'Gasto'}</button>)}
           </div>
           <div className="form-grid">
             <div className="field amount-field"><label htmlFor="edit-amount">Importe</label><div className="amount-input"><span>€</span><input id="edit-amount" inputMode="text" value={amount} onChange={(event) => setAmount(event.target.value)} required /></div></div>
             <div className="field"><label htmlFor="edit-category">Categoría</label><select id="edit-category" value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })}>{[...new Set([...categories[draft.type], draft.category])].map((category) => <option key={category}>{category}</option>)}</select></div>
-            <div className="field"><label htmlFor="edit-date">Fecha</label><input id="edit-date" type="date" max={draft.incomeReceipt && draft.type === 'income' ? today : undefined} value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} required /></div>
+            <div className="field"><label htmlFor="edit-date">Fecha</label><input id="edit-date" type="date" max={fixedPayment || draft.incomeReceipt ? today : undefined} value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} required /></div>
             <div className="field"><label htmlFor="edit-description">Descripción</label><input id="edit-description" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></div>
           </div>
 

@@ -3,7 +3,7 @@ import AuthScreen from './AuthScreen'
 import type { BackupData } from './BackupPanel'
 import Dashboard from './Dashboard'
 import { calculateBalanceAdjustment, getAvailableBalance, normalizeCryptoAsset } from './finance'
-import { recordIncomeReceipt, undoIncomeReceipt } from './monthlyBudget'
+import { fixedPaymentMovementId, recordIncomeReceipt, undoIncomeReceipt, validMonthlyBudget, withFixedPaymentMovements } from './monthlyBudget'
 import { closeSession, isSessionOpen, loadFixedExpenses, loadFutureSavingsPlan, loadLoans, loadMonthlyBudget, loadReserveMovements, loadTransactionDraftRecord, loadTransactions, saveTransactionDraftRecord, syncFromCloud, syncToCloud, type CloudSnapshot } from './storage'
 import type { AppFeedback, ConfirmIncomeReceipt, FixedExpense, FutureSavingsPlan, Loan, MonthlyBudget, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionFormDraftRecord } from './types'
 
@@ -166,6 +166,14 @@ export default function App() {
   }
 
   function updateTransaction(transaction: Transaction) {
+    const fixedPayment = monthlyBudget.payments?.find((payment) => payment.movement && fixedPaymentMovementId(payment) === transaction.id)
+    if (fixedPayment?.movement) {
+      if (transaction.type !== 'expense' || transaction.date > localDate()) return false
+      const { amount, date, category, description } = transaction
+      const payment = { ...fixedPayment, amount, movement: { ...fixedPayment.movement, date, category, description }, updatedAt: Math.max(Date.now(), fixedPayment.updatedAt + 1) }
+      const changes = { incomes: [], payments: [payment] }
+      return validMonthlyBudget(changes) && saveMonthlyBudget(changes, 'Pago fijo actualizado y sincronizado')
+    }
     if (transaction.incomeReceipt && (transaction.type !== 'income' || transaction.date > localDate())) return false
     return updateTransactions(transactions.map((current) => current.id === transaction.id ? transaction : current), 'Movimiento actualizado y sincronizado')
   }
@@ -181,12 +189,19 @@ export default function App() {
   }
 
   function deleteTransaction(id: string) {
+    const fixedPayment = monthlyBudget.payments?.find((payment) => payment.movement && fixedPaymentMovementId(payment) === id)
+    if (fixedPayment) {
+      const { expenseId, month } = fixedPayment
+      const payment = { expenseId, month, amount: null, updatedAt: Math.max(Date.now(), fixedPayment.updatedAt + 1) }
+      saveMonthlyBudget({ incomes: [], payments: [payment] }, 'Pago eliminado y gasto fijo marcado como pendiente')
+      return
+    }
     updateTransactions(transactions.filter((transaction) => transaction.id !== id), 'Movimiento eliminado y cambio sincronizado')
   }
 
   function adjustCurrentBalance(targetBalance: number) {
     const date = localDate()
-    const adjustment = calculateBalanceAdjustment(getAvailableBalance(transactions, loans, date), targetBalance)
+    const adjustment = calculateBalanceAdjustment(getAvailableBalance(withFixedPaymentMovements(transactions, monthlyBudget), loans, date), targetBalance)
     if (!adjustment) {
       setFeedback({ id: ++feedbackSequence.current, message: 'El saldo ya coincide. No hace falta cambiar nada.', tone: 'success' })
       return true

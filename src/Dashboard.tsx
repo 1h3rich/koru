@@ -13,7 +13,7 @@ import MonthPicker from './MonthPicker'
 import CsvImportPanel from './CsvImportPanel'
 import { getAvailableBalance, getLoanOutstanding, getReserveTotals } from './finance'
 import { getPurchaseBatchSources } from './purchaseBatch'
-import { defaultMonthCycle, entriesInBudgetPeriod, getBudgetMonth, getFixedExpenseNotices, getMonthPeriod } from './monthlyBudget'
+import { defaultMonthCycle, entriesInBudgetPeriod, fixedPaymentMovementId, getBudgetMonth, getFixedExpenseNotices, getMonthPeriod, withFixedPaymentMovements } from './monthlyBudget'
 import type { AppFeedback, ConfirmIncomeReceipt, FixedExpense, FutureSavingsPlan, Loan, MonthlyBudget, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionType } from './types'
 
 type Filter = 'all' | TransactionType
@@ -64,17 +64,18 @@ export default function Dashboard({ transactions, onAdd, onConfirmIncomeReceipt,
   const cycle = monthlyBudget.cycle ?? defaultMonthCycle
   const currentMonth = getBudgetMonth(today, cycle)
   const currentPeriod = getMonthPeriod(currentMonth, cycle)
-  const currentTransactions = useMemo(() => entriesInBudgetPeriod(transactions, currentMonth, cycle, today, (item) => item.date), [transactions, currentMonth, cycle, today])
+  const ledger = useMemo(() => withFixedPaymentMovements(transactions, monthlyBudget), [transactions, monthlyBudget])
+  const currentTransactions = useMemo(() => entriesInBudgetPeriod(ledger, currentMonth, cycle, today, (item) => item.date), [ledger, currentMonth, cycle, today])
   const selectedTransactions = useMemo(() => historyMonth && historyMonth !== currentMonth
-    ? entriesInBudgetPeriod(transactions, historyMonth, cycle, today, (item) => item.date)
-    : currentTransactions, [historyMonth, currentMonth, transactions, cycle, today, currentTransactions])
+    ? entriesInBudgetPeriod(ledger, historyMonth, cycle, today, (item) => item.date)
+    : currentTransactions, [historyMonth, currentMonth, ledger, cycle, today, currentTransactions])
 
   const cycleTotals = useMemo(() => {
     const income = currentTransactions.filter((item) => item.type === 'income' && !item.balanceAdjustment).reduce((sum, item) => sum + item.amount, 0)
     const expense = currentTransactions.filter((item) => item.type === 'expense' && !item.balanceAdjustment).reduce((sum, item) => sum + item.amount, 0)
     return { income, expense }
   }, [currentTransactions])
-  const balance = useMemo(() => getAvailableBalance(transactions, loans, today), [transactions, loans, today])
+  const balance = useMemo(() => getAvailableBalance(ledger, loans, today), [ledger, loans, today])
   const loaned = useMemo(() => loans.reduce((sum, loan) => sum + getLoanOutstanding(loan), 0), [loans])
 
   const visibleTransactions = useMemo(
@@ -206,7 +207,7 @@ export default function Dashboard({ transactions, onAdd, onConfirmIncomeReceipt,
                 </ul>
               </details>
             )}
-            <MonthsPanel budget={monthlyBudget} today={today} transactions={transactions} onSave={onSaveMonthlyBudget} onConfirm={onConfirmIncomeReceipt} onUndo={onCancelIncomeReceipt} />
+            <MonthsPanel budget={monthlyBudget} today={today} transactions={ledger} onSave={onSaveMonthlyBudget} onConfirm={onConfirmIncomeReceipt} onUndo={onCancelIncomeReceipt} />
             <TransactionForm onAdd={onAdd} savedDraft={transactionDraft} onDraftChange={onTransactionDraftChange} />
             <CsvImportPanel onImport={onImportCsv} />
             <ReservesPanel
@@ -216,8 +217,8 @@ export default function Dashboard({ transactions, onAdd, onConfirmIncomeReceipt,
               onUpdate={onUpdateReserveMovement}
             />
             <LoansPanel loans={loans} onSave={onSaveLoan} onDelete={onDeleteLoan} />
-            <FixedExpensesPanel expenses={fixedExpenses} budget={monthlyBudget} today={today} onSaveMonthlyBudget={onSaveMonthlyBudget} onSave={onSaveFixedExpense} onDelete={onDeleteFixedExpense} />
-            <FutureSavingsPanel transactions={transactions} fixedExpenses={fixedExpenses} monthlyBudget={monthlyBudget} today={today} plan={futureSavings} onSave={onSaveFutureSavings} />
+            <FixedExpensesPanel expenses={fixedExpenses} transactions={transactions} budget={monthlyBudget} today={today} onSaveMonthlyBudget={onSaveMonthlyBudget} onSave={onSaveFixedExpense} onDelete={onDeleteFixedExpense} />
+            <FutureSavingsPanel transactions={ledger} fixedExpenses={fixedExpenses} monthlyBudget={monthlyBudget} today={today} plan={futureSavings} onSave={onSaveFutureSavings} />
           </div>
 
           <details className="panel history-panel">
@@ -343,7 +344,7 @@ export default function Dashboard({ transactions, onAdd, onConfirmIncomeReceipt,
           <p>Tus datos se cifran antes de sincronizarse.</p>
         </footer>
       </main>
-      {editingTransaction && <TransactionEditor key={editingTransaction.id} transaction={editingTransaction} today={today} onSave={onUpdate} onClose={() => setEditingTransaction(null)} />}
+      {editingTransaction && <TransactionEditor key={editingTransaction.id} transaction={editingTransaction} today={today} fixedPayment={monthlyBudget.payments?.some((payment) => !!payment.movement && fixedPaymentMovementId(payment) === editingTransaction.id)} onSave={onUpdate} onClose={() => setEditingTransaction(null)} />}
       {settingsOpen && <SettingsPanel theme={theme} onThemeChange={onThemeChange} currentBalance={balance} onAdjustBalance={onAdjustBalance} transactions={transactions} reserveMovements={reserveMovements} loans={loans} fixedExpenses={fixedExpenses} monthlyBudget={monthlyBudget} futureSavings={futureSavings} onImportBackup={onImportBackup} onClose={() => setSettingsOpen(false)} />}
       {viewingPhoto && <div className="photo-viewer" role="dialog" aria-modal="true" aria-label="Foto ampliada" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewingPhoto(null) }}><button type="button" onClick={() => setViewingPhoto(null)} aria-label="Cerrar foto"><CloseIcon /></button><img src={viewingPhoto} alt="Foto ampliada de la compra" /></div>}
     </div>

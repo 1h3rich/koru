@@ -1122,6 +1122,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .fixed-payment-period > button { min-height: 50px; font-size: .82rem; }
 .fixed-expenses-content > .fixed-expenses-meter { margin-top: 12px; }
 .fixed-expense-actions { flex-wrap: wrap; }
+.fixed-payment-confirmation { grid-column: 1 / -1; min-width: 0; display: grid; gap: 8px; }
+.fixed-payment-confirmation select { width: 100%; min-width: 0; }
 .fixed-expense-actions .fixed-payment-paid, .fixed-expense-actions .fixed-payment-pending { display: inline-flex; align-items: center; gap: 4px; }
 .fixed-expense-actions > button.fixed-payment-paid:not(.icon-button) { color: var(--green); background: color-mix(in srgb, var(--green) 12%, var(--white)); }
 .fixed-payment-notices { padding: 0 16px; }

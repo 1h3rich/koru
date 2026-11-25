@@ -3,11 +3,44 @@ import { test } from 'node:test'
 import { getAvailableBalance } from '../src/finance.ts'
 import {
   defaultMonthCycle, entriesInBudgetPeriod, fixedExpenseDueDate, getBudgetMonth, getFixedExpenseNotices, getMonthlyBudgetHistory, getMonthlyIncomeDetails,
+  getFixedPaymentCandidates, makeFixedPayment, withFixedPaymentMovements,
   getMonthPeriod, mergeMonthlyBudgets, recordIncomeReceipt, summarizeBudgetMonth, summarizeFixedPayments, undoIncomeReceipt, validMonthlyBudget,
 } from '../src/monthlyBudget.ts'
 
 const gym = { id: 'gym', name: 'Gimnasio', amount: 25.99, active: true, dueDay: 4, createdAt: Date.UTC(2026, 9, 1) }
 const initialBudget = { incomes: [], payments: [{ expenseId: gym.id, month: '2026-11', amount: 25.99, updatedAt: 1 }] }
+
+test('A confirmed fixed payment affects cash and monthly expenses once, even across a budget reset', () => {
+  const entries = [{ id: 'cash', type: 'income', amount: 100, date: '2026-11-24' }]
+  const expense = { ...gym, category: 'Salud' }
+  const loans = [{ id: 'loan', amount: 50, status: 'open', lentDate: '2026-11-24' }]
+  assert.equal(getAvailableBalance(withFixedPaymentMovements(entries, initialBudget), loans), 50)
+
+  const payment = makeFixedPayment(expense, '2026-11', '2026-11-24', 2)
+  const confirmed = mergeMonthlyBudgets(initialBudget, { incomes: [], payments: [payment] })
+  assert.ok(validMonthlyBudget(confirmed))
+  const ledger = withFixedPaymentMovements(entries, mergeMonthlyBudgets(confirmed, confirmed))
+  assert.equal(getAvailableBalance(ledger, loans, '2026-11-25'), 24.01)
+  assert.equal(summarizeBudgetMonth(ledger, '2026-11', confirmed, '2026-11-25').expenses, 25.99)
+  assert.equal(summarizeBudgetMonth(ledger, '2026-12', confirmed, '2026-11-25').expenses, 0)
+  assert.equal(summarizeFixedPayments([expense], '2026-11', '2026-11-25', confirmed).paid, 25.99)
+
+  const undone = mergeMonthlyBudgets(confirmed, { incomes: [], payments: [{ expenseId: expense.id, month: '2026-11', amount: null, updatedAt: 3 }] })
+  assert.equal(getAvailableBalance(withFixedPaymentMovements(entries, mergeMonthlyBudgets(undone, confirmed)), loans), 50)
+  assert.equal(summarizeFixedPayments([expense], '2026-11', '2026-11-25', undone).pending, 25.99)
+})
+
+test('Linking a movement already recorded does not charge it again or remove it when unmarked', () => {
+  const existing = { id: 'existing', type: 'expense', amount: 25.99, date: '2026-11-04', description: 'Gimnasio' }
+  const transactions = [existing, { ...existing, id: 'other-month', date: '2026-10-04' }, { ...existing, id: 'future', date: '2026-11-29' }]
+  assert.deepEqual(getFixedPaymentCandidates(transactions, { incomes: [] }, gym, '2026-11', '2026-11-24'), [existing])
+  const linked = { incomes: [], payments: [makeFixedPayment(gym, '2026-11', existing.date, 2, existing)] }
+  assert.equal(summarizeFixedPayments([gym], '2026-11', '2026-11-24', linked).paid, 25.99)
+  assert.equal(getAvailableBalance(withFixedPaymentMovements([existing], linked), []), -25.99)
+  assert.deepEqual(getFixedPaymentCandidates(transactions, linked, gym, '2026-11', '2026-11-24'), [])
+  const undone = mergeMonthlyBudgets(linked, { incomes: [], payments: [{ expenseId: gym.id, month: '2026-11', amount: null, updatedAt: 3 }] })
+  assert.deepEqual(withFixedPaymentMovements([existing], undone), [existing])
+})
 
 test('Pay received on the 25th goes into the next month across year boundaries', () => {
   assert.equal(getBudgetMonth('2026-11-24', defaultMonthCycle), '2026-11')

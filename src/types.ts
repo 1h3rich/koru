@@ -118,6 +118,8 @@ export interface FixedExpensePayment {
   month: string
   amount: number | null
   updatedAt: number
+  movement?: Pick<Transaction, 'date' | 'category' | 'description' | 'createdAt'>
+  transactionId?: string
 }
 
 export interface MonthlyBudget {

@@ -2,8 +2,8 @@ import { useMemo, useState, type FormEvent } from 'react'
 import DecimalInput from './DecimalInput'
 import { CheckIcon, EditIcon, PlusIcon, RepeatIcon, TrashIcon } from './Icons'
 import MonthPicker from './MonthPicker'
-import { defaultMonthCycle, fixedExpenseDueDate, getBudgetMonth, getMonthlyIncomeDetails, summarizeFixedPayments } from './monthlyBudget'
-import type { FixedExpense, MonthlyBudget } from './types'
+import { defaultMonthCycle, fixedExpenseDueDate, getBudgetMonth, getFixedPaymentCandidates, getMonthlyIncomeDetails, makeFixedPayment, summarizeFixedPayments } from './monthlyBudget'
+import type { FixedExpense, MonthlyBudget, Transaction } from './types'
 
 const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
 const dateLabel = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', timeZone: 'UTC' })
@@ -11,6 +11,7 @@ const categories = ['Vivienda', 'Alimentación', 'Transporte', 'Salud', 'Suscrip
 
 interface Props {
   expenses: FixedExpense[]
+  transactions: Transaction[]
   budget: MonthlyBudget
   today: string
   onSaveMonthlyBudget: (changes: MonthlyBudget, message: string) => boolean
@@ -27,7 +28,7 @@ interface Draft {
 
 const emptyDraft = (): Draft => ({ name: '', amount: 0, category: 'Vivienda', dueDay: '' })
 
-export default function FixedExpensesPanel({ expenses, budget, today, onSaveMonthlyBudget, onSave, onDelete }: Props) {
+export default function FixedExpensesPanel({ expenses, transactions, budget, today, onSaveMonthlyBudget, onSave, onDelete }: Props) {
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
   const summary = useMemo(() => summarizeFixedPayments(expenses, selectedMonth, today, budget), [expenses, selectedMonth, today, budget])
   const incomeMonth = selectedMonth ?? getBudgetMonth(today, budget.cycle ?? defaultMonthCycle)
@@ -39,6 +40,8 @@ export default function FixedExpensesPanel({ expenses, budget, today, onSaveMont
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState('')
   const [deletePending, setDeletePending] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<{ expenseId: string, month: string } | null>(null)
+  const [movementChoice, setMovementChoice] = useState('')
 
   function startAdd() {
     setEditing(null)
@@ -91,13 +94,22 @@ export default function FixedExpensesPanel({ expenses, budget, today, onSaveMont
     setDeletePending(null)
   }
 
-  function togglePayment(expense: FixedExpense, month: string, paid: number | null, updatedAt: number) {
-    const amount = paid === null ? Math.round(expense.amount * 100) / 100 : null
+  function savePayment(expense: FixedExpense, month: string, paid: boolean, timestamp: number, existing?: Transaction) {
     const previous = budget.payments?.find((payment) => payment.expenseId === expense.id && payment.month === month)
-    onSaveMonthlyBudget(
-      { incomes: [], payments: [{ expenseId: expense.id, month, amount, updatedAt: Math.max(updatedAt, (previous?.updatedAt ?? 0) + 1) }] },
-      amount === null ? 'Pago marcado como pendiente' : 'Pago marcado como pagado',
-    )
+    const updatedAt = Math.max(timestamp, (previous?.updatedAt ?? 0) + 1)
+    const date = selectedMonth && month < today.slice(0, 7) ? fixedExpenseDueDate(month, expense.dueDay ?? 31) : today
+    const payment = paid ? makeFixedPayment(expense, month, date, updatedAt, existing) : { expenseId: expense.id, month, amount: null, updatedAt }
+    const message = !paid ? 'Pago marcado como pendiente' : existing ? 'Pago vinculado al gasto existente' : 'Gasto fijo pagado y descontado del disponible'
+    if (onSaveMonthlyBudget({ incomes: [], payments: [payment] }, message)) setConfirming(null)
+  }
+
+  function togglePayment(expense: FixedExpense, month: string, paid: number | null, timestamp: number) {
+    if (paid === null && getFixedPaymentCandidates(transactions, budget, expense, month, today).length) {
+      setMovementChoice('')
+      setConfirming({ expenseId: expense.id, month })
+      return
+    }
+    savePayment(expense, month, paid === null, timestamp)
   }
 
   return (
@@ -128,7 +140,7 @@ export default function FixedExpensesPanel({ expenses, budget, today, onSaveMont
         </div>
 
         <div className="fixed-expenses-toolbar">
-          <div><strong>{selectedMonth ? 'Pagos del mes' : 'Pagos del ciclo actual'}</strong><span>Marcar un pago solo actualiza su estado aquí.</span></div>
+          <div><strong>{selectedMonth ? 'Pagos del mes' : 'Pagos del ciclo actual'}</strong><span>Al confirmar un pago, el gasto cuenta en Disponible.</span></div>
           {!showForm && <button type="button" className="secondary-button" onClick={startAdd}><PlusIcon /> Nuevo</button>}
         </div>
 
@@ -151,6 +163,8 @@ export default function FixedExpensesPanel({ expenses, budget, today, onSaveMont
             {ordered.map((expense) => {
               const { month, paid } = summary.occurrences.get(expense.id)!
               const dueDate = expense.dueDay === null ? null : fixedExpenseDueDate(month, expense.dueDay)
+              const choosingMovement = expense.active && paid === null && confirming?.expenseId === expense.id && confirming.month === month
+              const candidates = choosingMovement ? getFixedPaymentCandidates(transactions, budget, expense, month, today) : []
               return (
               <li key={expense.id} className={expense.active ? '' : 'paused'}>
                 <span className="fixed-expense-date">{expense.dueDay ? <><b>{expense.dueDay}</b><small>DÍA</small></> : <><b>—</b><small>FLEX</small></>}</span>
@@ -162,6 +176,24 @@ export default function FixedExpensesPanel({ expenses, budget, today, onSaveMont
                   <button type="button" className="icon-button" onClick={() => startEdit(expense)} aria-label={`Editar ${expense.name}`}><EditIcon /></button>
                   <button type="button" className={`icon-button fixed-expense-delete ${deletePending === expense.id ? 'confirming' : ''}`} onClick={() => confirmDelete(expense.id)} aria-label={deletePending === expense.id ? `Confirmar eliminación de ${expense.name}` : `Eliminar ${expense.name}`}>{deletePending === expense.id ? <><CheckIcon /> Confirmar</> : <TrashIcon />}</button>
                 </div>
+                {choosingMovement && <form className="fixed-payment-confirmation" onSubmit={(event) => {
+                  event.preventDefault()
+                  const existing = candidates.find(({ id }) => id === movementChoice)
+                  if (existing || movementChoice === 'new') savePayment(expense, month, true, Date.now(), existing)
+                }}>
+                  <div className="field">
+                    <label htmlFor="fixed-payment-movement">¿Ya anotaste este gasto?</label>
+                    <select id="fixed-payment-movement" value={movementChoice} onChange={(event) => setMovementChoice(event.target.value)} required>
+                      <option value="" disabled>Elige una opción</option>
+                      {candidates.map((item) => <option key={item.id} value={item.id}>{dateLabel.format(new Date(`${item.date}T00:00:00Z`))} · {item.description || item.category}</option>)}
+                      <option value="new">Crear gasto nuevo</option>
+                    </select>
+                  </div>
+                  <div className="fixed-expense-actions">
+                    <button type="button" onClick={() => setConfirming(null)}>Cancelar</button>
+                    <button type="submit" disabled={!movementChoice}>Confirmar pago</button>
+                  </div>
+                </form>}
               </li>
               )
             })}
