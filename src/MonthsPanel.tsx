@@ -1,9 +1,8 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { CalendarIcon, CheckIcon, TrashIcon } from './Icons'
+import { CalendarIcon, TrashIcon } from './Icons'
 import MonthPicker from './MonthPicker'
 import MonthlyIncomeSources from './MonthlyIncomeSources'
-import { parseBudgetAmount } from './money'
-import { defaultMonthCycle, getBudgetMonth, MAX_MONTHLY_INCOME, moveMonth, summarizeBudgetMonth, validMonthCutoff } from './monthlyBudget'
+import { defaultMonthCycle, getBudgetMonth, moveMonth, summarizeBudgetMonth, validMonthCutoff } from './monthlyBudget'
 import type { MonthCycle, MonthlyBudget, Transaction } from './types'
 
 const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
@@ -22,7 +21,7 @@ export default function MonthsPanel({ budget, today, transactions, onSave }: Pro
   const cycle = budget.cycle ?? defaultMonthCycle
   const month = selected ?? getBudgetMonth(today, cycle)
   const summary = useMemo(() => summarizeBudgetMonth(transactions, month, budget), [transactions, month, budget])
-  const { manual, planned, sources } = summary.incomeDetails
+  const { sources } = summary.incomeDetails
 
   return (
     <details className="panel months-panel">
@@ -42,63 +41,15 @@ export default function MonthsPanel({ budget, today, transactions, onSave }: Pro
         </div>
         <p className="month-period"><CalendarIcon /> {displayDate(summary.period.start)} – {displayDate(summary.period.end)}</p>
         <dl className="month-totals">
-          <div><dt>Ingresos</dt><dd>{currency.format(summary.income)}</dd></div>
+          <div><dt>Ingresos recurrentes</dt><dd>{currency.format(summary.income)}</dd></div>
           <div><dt>Gastos registrados</dt><dd>{currency.format(summary.expenses)}</dd></div>
           <div className="month-difference"><dt>Diferencia</dt><dd className={summary.difference < 0 ? 'negative' : ''}>{currency.format(summary.difference)}</dd></div>
         </dl>
         <MonthlyIncomeSources key={month} month={month} sources={sources} onSave={onSave} />
-        {planned === null ? (
-          <MonthlyIncomeForm
-            key={`${month}:${manual?.amount}`}
-            month={month}
-            amount={manual?.amount ?? null}
-            lastUpdated={manual?.updatedAt}
-            recorded={summary.recordedIncome}
-            onSave={onSave}
-          />
-        ) : (
-          <p className="monthly-income-note">Este presupuesto usa {currency.format(planned)} de ingresos recurrentes. En Movimientos figuran {currency.format(summary.recordedIncome)} cobrados en el periodo.</p>
-        )}
+        {sources.length === 0 && <p className="monthly-income-note">Añade tus nóminas o cobros habituales. Los ingresos puntuales de «Movimientos» cuentan para el saldo disponible.</p>}
         <CycleSettings cycle={cycle} showHolidays={sources.some((source) => source.payday === 'fourth-business-day')} onSave={onSave} />
       </div>
     </details>
-  )
-}
-
-export function MonthlyIncomeForm({ month, amount, recorded, onSave, lastUpdated = 0, fieldId = 'exact-monthly-income' }: Pick<Props, 'onSave'> & { month: string, amount: number | null, recorded?: number, lastUpdated?: number, fieldId?: string }) {
-  const [value, setValue] = useState(() => amount === null ? '' : String(amount).replace('.', ','))
-  const [error, setError] = useState('')
-
-  function saveIncome(next: number | null) {
-    setError('')
-    onSave({ incomes: [{ month, amount: next, updatedAt: Math.max(Date.now(), lastUpdated + 1) }] }, next === null ? 'Restaurados los ingresos de Movimientos' : 'Ingresos del mes guardados')
-  }
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const parsed = parseBudgetAmount(value)
-    if (!Number.isFinite(parsed) || parsed < 0 || parsed > MAX_MONTHLY_INCOME) {
-      setError('Introduce un importe válido igual o superior a cero.')
-      return
-    }
-    saveIncome(Math.round(parsed * 100) / 100)
-  }
-
-  return (
-    <form className="month-income-form" onSubmit={submit}>
-      <div className="field">
-        <label htmlFor={fieldId}>Ingresos exactos del mes</label>
-        <div className="amount-input"><span>€</span><input id={fieldId} inputMode="text" placeholder="0,00" value={value} onChange={(event) => { setValue(event.target.value); setError('') }} required /></div>
-      </div>
-      {recorded === undefined
-        ? <p>Introduce el total del mes, incluido lo que aún te queda por cobrar. Se comparte con «Meses».</p>
-        : <p>En Movimientos figuran {currency.format(recorded)}. Si guardas un total aquí, se usará esa cifra para este resumen.</p>}
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <div className="month-income-actions">
-        <button className="primary-button" type="submit"><CheckIcon /> Guardar total</button>
-        {recorded !== undefined && amount !== null && <button className="secondary-button" type="button" onClick={() => saveIncome(null)}>Usar movimientos</button>}
-      </div>
-    </form>
   )
 }
 

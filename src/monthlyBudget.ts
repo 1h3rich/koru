@@ -134,32 +134,53 @@ export function getMonthlyIncomeDetails(month: string, budget: MonthlyBudget) {
     amount: source.amount,
     date: cutoffDate(payMonth, { ...cycle, cutoff: source.payday }),
   }]).sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name, 'es'))
-  const manual = budget.incomes.find((entry) => entry.month === month)
   const planned = sources.length > 0 ? sources.reduce((sum, source) => sum + Math.round(source.amount * 100), 0) / 100 : null
-  return { sources, planned, manual, total: planned ?? manual?.amount ?? null }
+  return { sources, planned }
+}
+
+function isBudgetExpense(transaction: Transaction) {
+  return transaction.type === 'expense' && !transaction.balanceAdjustment && Number.isFinite(transaction.amount) && transaction.amount > 0
 }
 
 export function summarizeBudgetMonth(transactions: Transaction[], month: string, budget: MonthlyBudget) {
   const period = getMonthPeriod(month, budget.cycle ?? defaultMonthCycle)
-  let recordedIncomeCents = 0
   let expenseCents = 0
-  for (const { type, date, amount, balanceAdjustment } of transactions) {
-    if (balanceAdjustment || date < period.start || date >= period.endExclusive || !Number.isFinite(amount) || amount <= 0) continue
-    if (type === 'income') recordedIncomeCents += Math.round(amount * 100)
-    if (type === 'expense') expenseCents += Math.round(amount * 100)
+  for (const transaction of transactions) {
+    if (isBudgetExpense(transaction) && transaction.date >= period.start && transaction.date < period.endExclusive) {
+      expenseCents += Math.round(transaction.amount * 100)
+    }
   }
-  const details = getMonthlyIncomeDetails(month, budget)
-  const exactIncome = details.total
-  const incomeCents = exactIncome === null ? recordedIncomeCents : Math.round(exactIncome * 100)
+  const incomeDetails = getMonthlyIncomeDetails(month, budget)
+  const incomeCents = Math.round((incomeDetails.planned ?? 0) * 100)
   return {
     period,
-    exactIncome,
-    incomeDetails: details,
-    recordedIncome: recordedIncomeCents / 100,
+    incomeDetails,
     income: incomeCents / 100,
     expenses: expenseCents / 100,
     difference: (incomeCents - expenseCents) / 100,
   }
+}
+
+export function getMonthlyBudgetHistory(transactions: Transaction[], budget: MonthlyBudget, today: string) {
+  const cycle = budget.cycle ?? defaultMonthCycle
+  const currentMonth = getBudgetMonth(today, cycle)
+  const expensesByMonth = new Map<string, number>()
+  for (const transaction of transactions) {
+    if (!isBudgetExpense(transaction) || !validDate(transaction.date) || !validMonth(transaction.date.slice(0, 7))) continue
+    const month = getBudgetMonth(transaction.date, cycle)
+    if (month > currentMonth) continue
+    expensesByMonth.set(month, (expensesByMonth.get(month) ?? 0) + Math.round(transaction.amount * 100))
+  }
+  const months = new Set(expensesByMonth.keys())
+  const firstSourceMonth = budget.incomeSources?.reduce((first, source) => source.month < first ? source.month : first, currentMonth) ?? currentMonth
+  for (let month = firstSourceMonth; month <= currentMonth; month = moveMonth(month, 1)) months.add(month)
+  return [...months].sort((a, b) => b.localeCompare(a)).flatMap((month) => {
+    const { planned } = getMonthlyIncomeDetails(month, budget)
+    const expenseCents = expensesByMonth.get(month) ?? 0
+    if (planned === null && expenseCents === 0) return []
+    const incomeCents = Math.round((planned ?? 0) * 100)
+    return [{ month, income: incomeCents / 100, expenses: expenseCents / 100, difference: (incomeCents - expenseCents) / 100 }]
+  })
 }
 
 function activeFixedPaymentMonth(today: string, dueDay: number | null) {

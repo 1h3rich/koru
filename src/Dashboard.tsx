@@ -204,7 +204,7 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
             />
             <LoansPanel loans={loans} onSave={onSaveLoan} onDelete={onDeleteLoan} />
             <FixedExpensesPanel expenses={fixedExpenses} transactions={transactions} budget={monthlyBudget} today={today} onSaveMonthlyBudget={onSaveMonthlyBudget} onSave={onSaveFixedExpense} onDelete={onDeleteFixedExpense} />
-            <FutureSavingsPanel transactions={transactions} fixedExpenses={fixedExpenses} monthlyBudget={monthlyBudget} today={today} plan={futureSavings} onSave={onSaveFutureSavings} onSaveMonthlyBudget={onSaveMonthlyBudget} />
+            <FutureSavingsPanel transactions={transactions} fixedExpenses={fixedExpenses} monthlyBudget={monthlyBudget} today={today} plan={futureSavings} onSave={onSaveFutureSavings} />
           </div>
 
           <details className="panel history-panel">

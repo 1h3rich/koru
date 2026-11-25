@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { getAvailableBalance } from '../src/finance.ts'
 import {
-  defaultMonthCycle, fixedExpenseDueDate, getBudgetMonth, getFixedExpenseNotices, getMonthlyIncomeDetails,
+  defaultMonthCycle, fixedExpenseDueDate, getBudgetMonth, getFixedExpenseNotices, getMonthlyBudgetHistory, getMonthlyIncomeDetails,
   getMonthPeriod, mergeMonthlyBudgets, summarizeBudgetMonth, summarizeFixedPayments, validMonthlyBudget,
 } from '../src/monthlyBudget.ts'
 
@@ -23,7 +24,7 @@ test('Fourth working day from month end skips weekends and configured holidays',
   assert.equal(getBudgetMonth('2026-12-25', withHoliday), '2027-01')
 })
 
-test('Exact income replaces movements, while the result uses expenses within the selected cycle', () => {
+test('One-off income contributes to available balance and never to monthly income', () => {
   const transactions = [
     { type: 'income', amount: 500, date: '2026-11-25' },
     { type: 'expense', amount: 70, date: '2026-12-24' },
@@ -32,11 +33,10 @@ test('Exact income replaces movements, while the result uses expenses within the
   ]
   const budget = { incomes: [{ month: '2026-12', amount: 750.10, updatedAt: 1 }] }
   const summary = summarizeBudgetMonth(transactions, '2026-12', budget)
-  assert.equal(summary.recordedIncome, 500)
-  assert.equal(summary.income, 750.10)
+  assert.equal(summary.income, 0)
   assert.equal(summary.expenses, 70)
-  assert.equal(summary.difference, 680.10)
-  assert.equal(summarizeBudgetMonth(transactions, '2026-12', { incomes: [{ month: '2026-12', amount: 0, updatedAt: 1 }] }).income, 0)
+  assert.equal(summary.difference, -70)
+  assert.equal(getAvailableBalance(transactions, []), 345)
 })
 
 test('A dated payment resets on its own due day and keeps its prior paid history', () => {
@@ -76,14 +76,13 @@ test('Both recurring incomes go into the selected budget even when one payday pr
   const budget = { incomes: [{ month: '2026-12', amount: 1000, updatedAt: 1 }], cycle: { ...defaultMonthCycle, holidays: ['2026-11-30'] }, incomeSources: [payday25, lastWeek] }
   assert.ok(validMonthlyBudget(budget))
   const details = getMonthlyIncomeDetails('2026-12', budget)
-  assert.equal(details.total, 1200.30)
+  assert.equal(details.planned, 1200.30)
   assert.deepEqual(details.sources.map(({ date }) => date), ['2026-11-24', '2026-11-25'])
   const summary = summarizeBudgetMonth([{ type: 'income', amount: 500.10, date: '2026-11-25' }], '2026-12', budget)
-  assert.equal(summary.recordedIncome, 500.10)
   assert.equal(summary.income, 1200.30)
   assert.equal(summary.period.start, '2026-11-25')
-  assert.equal(getMonthlyIncomeDetails('2026-11', budget).total, null)
-  assert.equal(getMonthlyIncomeDetails('2027-01', budget).total, 1200.30)
+  assert.equal(getMonthlyIncomeDetails('2026-11', budget).planned, null)
+  assert.equal(getMonthlyIncomeDetails('2027-01', budget).planned, 1200.30)
 })
 
 test('Recurring income edits and withdrawals apply from their effective month and keep prior totals', () => {
@@ -93,7 +92,22 @@ test('Recurring income edits and withdrawals apply from their effective month an
     { ...lastWeek, month: '2027-01', amount: null, updatedAt: 4 },
   ] }
   const synced = mergeMonthlyBudgets(original, edits)
-  assert.equal(getMonthlyIncomeDetails('2026-12', synced).total, 1200.30)
-  assert.equal(getMonthlyIncomeDetails('2027-01', synced).total, 550)
-  assert.equal(getMonthlyIncomeDetails('2027-02', synced).total, 550)
+  assert.equal(getMonthlyIncomeDetails('2026-12', synced).planned, 1200.30)
+  assert.equal(getMonthlyIncomeDetails('2027-01', synced).planned, 550)
+  assert.equal(getMonthlyIncomeDetails('2027-02', synced).planned, 550)
+})
+
+test('Budget history uses the cutoff, recurring incomes and recorded expenses', () => {
+  const budget = { incomes: [], incomeSources: [{ ...payday25, amount: 1000 }] }
+  const transactions = [
+    { type: 'income', amount: 500, date: '2026-11-25' },
+    { type: 'expense', amount: 800, date: '2026-11-25' },
+    { type: 'expense', amount: 1030, date: '2026-12-25' },
+    { type: 'expense', amount: 500, date: '2026-12-26', balanceAdjustment: true },
+    { type: 'income', amount: 150, date: '2027-01-02' },
+  ]
+  assert.deepEqual(getMonthlyBudgetHistory(transactions, budget, '2027-01-05'), [
+    { month: '2027-01', income: 1000, expenses: 1030, difference: -30 },
+    { month: '2026-12', income: 1000, expenses: 800, difference: 200 },
+  ])
 })
