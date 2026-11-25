@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import BackupPanel, { type BackupData } from './BackupPanel'
 import DecimalInput from './DecimalInput'
 import { CheckIcon, CloseIcon, DeviceIcon, GearIcon, MoonIcon, SunIcon, WalletIcon } from './Icons'
-import type { FixedExpense, Loan, ReserveMovement, ThemePreference, Transaction } from './types'
+import type { FixedExpense, FutureSavingsPlan, Loan, MonthlyBudget, ReserveMovement, ThemePreference, Transaction } from './types'
 
 interface SettingsPanelProps {
   theme: ThemePreference
@@ -13,6 +13,8 @@ interface SettingsPanelProps {
   reserveMovements: ReserveMovement[]
   loans: Loan[]
   fixedExpenses: FixedExpense[]
+  monthlyBudget: MonthlyBudget
+  futureSavings: FutureSavingsPlan | null
   onImportBackup: (data: BackupData) => void
   onClose: () => void
 }
@@ -25,7 +27,7 @@ const themeOptions: Array<{ value: ThemePreference, label: string, description: 
 
 const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
 
-export default function SettingsPanel({ theme, onThemeChange, currentBalance, onAdjustBalance, transactions, reserveMovements, loans, fixedExpenses, onImportBackup, onClose }: SettingsPanelProps) {
+export default function SettingsPanel({ theme, onThemeChange, currentBalance, onAdjustBalance, transactions, reserveMovements, loans, fixedExpenses, monthlyBudget, futureSavings, onImportBackup, onClose }: SettingsPanelProps) {
   const [targetBalance, setTargetBalance] = useState(currentBalance)
   const [balanceNotice, setBalanceNotice] = useState('')
   useEffect(() => {
@@ -80,7 +82,7 @@ export default function SettingsPanel({ theme, onThemeChange, currentBalance, on
 
         <div className="settings-section settings-backup-section">
           <div className="settings-section-heading"><strong>Tus datos</strong><span>Una copia adicional que solo controlas tú.</span></div>
-          <BackupPanel transactions={transactions} reserveMovements={reserveMovements} loans={loans} fixedExpenses={fixedExpenses} onImport={onImportBackup} />
+          <BackupPanel transactions={transactions} reserveMovements={reserveMovements} loans={loans} fixedExpenses={fixedExpenses} monthlyBudget={monthlyBudget} futureSavings={futureSavings} onImport={onImportBackup} />
         </div>
       </section>
     </div>

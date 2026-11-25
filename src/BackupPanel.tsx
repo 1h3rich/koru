@@ -1,7 +1,9 @@
 import { useState, type ChangeEvent } from 'react'
 import { ShieldIcon } from './Icons'
 import { validFixedExpense } from './fixedExpenses'
-import type { FixedExpense, Loan, ReserveMovement, Transaction } from './types'
+import { validFutureSavingsPlan } from './futureSavings'
+import { validMonthlyBudget } from './monthlyBudget'
+import type { FixedExpense, FutureSavingsPlan, Loan, MonthlyBudget, ReserveMovement, Transaction } from './types'
 
 export interface BackupData {
   version: 1
@@ -10,6 +12,8 @@ export interface BackupData {
   reserveMovements: ReserveMovement[]
   loans: Loan[]
   fixedExpenses?: FixedExpense[]
+  monthlyBudget?: MonthlyBudget
+  futureSavings?: FutureSavingsPlan
 }
 
 interface BackupPanelProps {
@@ -17,14 +21,16 @@ interface BackupPanelProps {
   reserveMovements: ReserveMovement[]
   loans: Loan[]
   fixedExpenses: FixedExpense[]
+  monthlyBudget: MonthlyBudget
+  futureSavings: FutureSavingsPlan | null
   onImport: (data: BackupData) => void
 }
 
-export default function BackupPanel({ transactions, reserveMovements, loans, fixedExpenses, onImport }: BackupPanelProps) {
+export default function BackupPanel({ transactions, reserveMovements, loans, fixedExpenses, monthlyBudget, futureSavings, onImport }: BackupPanelProps) {
   const [message, setMessage] = useState('')
 
   function downloadBackup() {
-    const data: BackupData = { version: 1, exportedAt: new Date().toISOString(), transactions, reserveMovements, loans, fixedExpenses }
+    const data: BackupData = { version: 1, exportedAt: new Date().toISOString(), transactions, reserveMovements, loans, fixedExpenses, monthlyBudget, futureSavings: futureSavings ?? undefined }
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
     const anchor = document.createElement('a')
     anchor.href = url
@@ -41,7 +47,9 @@ export default function BackupPanel({ transactions, reserveMovements, loans, fix
     try {
       const data = JSON.parse(await file.text()) as Partial<BackupData>
       if (data.version !== 1 || !Array.isArray(data.transactions) || !Array.isArray(data.reserveMovements) || !Array.isArray(data.loans)
-        || (data.fixedExpenses !== undefined && (!Array.isArray(data.fixedExpenses) || !data.fixedExpenses.every(validFixedExpense)))) throw new Error()
+        || (data.fixedExpenses !== undefined && (!Array.isArray(data.fixedExpenses) || !data.fixedExpenses.every(validFixedExpense)))
+        || (data.monthlyBudget !== undefined && !validMonthlyBudget(data.monthlyBudget))
+        || (data.futureSavings !== undefined && !validFutureSavingsPlan(data.futureSavings))) throw new Error()
       onImport(data as BackupData)
       setMessage('Copia recuperada y combinada con los datos de este dispositivo.')
     } catch {

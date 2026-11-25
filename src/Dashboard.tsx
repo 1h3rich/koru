@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowDownIcon, ArrowUpIcon, CameraIcon, CheckIcon, CloseIcon, CryptoIcon, EditIcon, EmptyIcon, GearIcon, ImageIcon, LogoutIcon, PeopleIcon, PlusIcon, ReceiptIcon, SavingsIcon, ShareIcon, ShieldIcon, TrashIcon, WalletIcon } from './Icons'
+import { ArrowDownIcon, ArrowUpIcon, CalendarIcon, CameraIcon, CheckIcon, CloseIcon, CryptoIcon, EditIcon, EmptyIcon, GearIcon, ImageIcon, LogoutIcon, PeopleIcon, PlusIcon, ReceiptIcon, SavingsIcon, ShareIcon, ShieldIcon, TrashIcon, WalletIcon } from './Icons'
 import type { BackupData } from './BackupPanel'
 import LoansPanel from './LoansPanel'
 import ReservesPanel from './ReservesPanel'
@@ -8,10 +8,12 @@ import SettingsPanel from './SettingsPanel'
 import TransactionForm from './TransactionForm'
 import FutureSavingsPanel from './FutureSavingsPanel'
 import FixedExpensesPanel from './FixedExpensesPanel'
+import MonthsPanel from './MonthsPanel'
 import CsvImportPanel from './CsvImportPanel'
 import { getAvailableBalance, getLoanOutstanding, getReserveTotals } from './finance'
 import { getPurchaseBatchSources } from './purchaseBatch'
-import type { AppFeedback, FixedExpense, FutureSavingsPlan, Loan, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionType } from './types'
+import { getFixedExpenseNotices } from './monthlyBudget'
+import type { AppFeedback, FixedExpense, FutureSavingsPlan, Loan, MonthlyBudget, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionType } from './types'
 
 type Filter = 'all' | TransactionType
 
@@ -36,6 +38,9 @@ interface DashboardProps {
   onUpdateReserveMovement: (movement: ReserveMovement) => void
   loans: Loan[]
   fixedExpenses: FixedExpense[]
+  monthlyBudget: MonthlyBudget
+  onSaveMonthlyBudget: (changes: MonthlyBudget, message: string) => boolean
+  today: string
   onSaveLoan: (loan: Loan) => void
   onDeleteLoan: (id: string) => void
   onSaveFixedExpense: (expense: FixedExpense) => void
@@ -47,7 +52,7 @@ interface DashboardProps {
   onLogout: () => void
 }
 
-export default function Dashboard({ transactions, onAdd, transactionDraft, onTransactionDraftChange, onImportCsv, onDelete, onUpdate, reserveMovements, syncStatus, feedback, onAddReserveMovement, onDeleteReserveMovement, onUpdateReserveMovement, loans, fixedExpenses, futureSavings, onSaveFutureSavings, onSaveLoan, onDeleteLoan, onSaveFixedExpense, onDeleteFixedExpense, onImportBackup, onAdjustBalance, theme, onThemeChange, onLogout }: DashboardProps) {
+export default function Dashboard({ transactions, onAdd, transactionDraft, onTransactionDraftChange, onImportCsv, onDelete, onUpdate, reserveMovements, syncStatus, feedback, onAddReserveMovement, onDeleteReserveMovement, onUpdateReserveMovement, loans, fixedExpenses, monthlyBudget, onSaveMonthlyBudget, today, futureSavings, onSaveFutureSavings, onSaveLoan, onDeleteLoan, onSaveFixedExpense, onDeleteFixedExpense, onImportBackup, onAdjustBalance, theme, onThemeChange, onLogout }: DashboardProps) {
   const [filter, setFilter] = useState<Filter>('all')
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -68,6 +73,7 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
   )
 
   const reserveTotals = useMemo(() => getReserveTotals(reserveMovements), [reserveMovements])
+  const paymentNotices = useMemo(() => getFixedExpenseNotices(fixedExpenses, today, monthlyBudget), [fixedExpenses, today, monthlyBudget])
 
   const ratio = totals.income === 0 ? 0 : Math.min((totals.expense / totals.income) * 100, 100)
 
@@ -174,6 +180,20 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
 
         <div className="workspace-grid">
           <div className="action-stack">
+            {paymentNotices.length > 0 && (
+              <details className="panel fixed-payment-notices" open>
+                <summary><CalendarIcon /><strong>Avisos de pagos</strong><span>{paymentNotices.length}</span></summary>
+                <ul>
+                  {paymentNotices.map(({ expense, date, status }) => (
+                    <li key={`${expense.id}:${date}`}>
+                      <span><strong>{expense.name}</strong><small>{status} · <time dateTime={date}>{dateFormatter.format(new Date(`${date}T12:00:00`))}</time></small></span>
+                      <b>{currency.format(expense.amount)}</b>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            <MonthsPanel budget={monthlyBudget} today={today} transactions={transactions} onSave={onSaveMonthlyBudget} />
             <TransactionForm onAdd={onAdd} savedDraft={transactionDraft} onDraftChange={onTransactionDraftChange} />
             <CsvImportPanel onImport={onImportCsv} />
             <ReservesPanel
@@ -183,8 +203,8 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
               onUpdate={onUpdateReserveMovement}
             />
             <LoansPanel loans={loans} onSave={onSaveLoan} onDelete={onDeleteLoan} />
-            <FixedExpensesPanel expenses={fixedExpenses} transactions={transactions} onSave={onSaveFixedExpense} onDelete={onDeleteFixedExpense} />
-            <FutureSavingsPanel key={futureSavings?.updatedAt ?? 'empty-plan'} transactions={transactions} plan={futureSavings} onSave={onSaveFutureSavings} />
+            <FixedExpensesPanel expenses={fixedExpenses} transactions={transactions} budget={monthlyBudget} today={today} onSaveMonthlyBudget={onSaveMonthlyBudget} onSave={onSaveFixedExpense} onDelete={onDeleteFixedExpense} />
+            <FutureSavingsPanel transactions={transactions} fixedExpenses={fixedExpenses} monthlyBudget={monthlyBudget} today={today} plan={futureSavings} onSave={onSaveFutureSavings} onSaveMonthlyBudget={onSaveMonthlyBudget} />
           </div>
 
           <details className="panel history-panel">
@@ -304,7 +324,7 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
         </footer>
       </main>
       {editingTransaction && <TransactionEditor key={editingTransaction.id} transaction={editingTransaction} onSave={onUpdate} onClose={() => setEditingTransaction(null)} />}
-      {settingsOpen && <SettingsPanel theme={theme} onThemeChange={onThemeChange} currentBalance={totals.balance} onAdjustBalance={onAdjustBalance} transactions={transactions} reserveMovements={reserveMovements} loans={loans} fixedExpenses={fixedExpenses} onImportBackup={onImportBackup} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsPanel theme={theme} onThemeChange={onThemeChange} currentBalance={totals.balance} onAdjustBalance={onAdjustBalance} transactions={transactions} reserveMovements={reserveMovements} loans={loans} fixedExpenses={fixedExpenses} monthlyBudget={monthlyBudget} futureSavings={futureSavings} onImportBackup={onImportBackup} onClose={() => setSettingsOpen(false)} />}
       {viewingPhoto && <div className="photo-viewer" role="dialog" aria-modal="true" aria-label="Foto ampliada" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewingPhoto(null) }}><button type="button" onClick={() => setViewingPhoto(null)} aria-label="Cerrar foto"><CloseIcon /></button><img src={viewingPhoto} alt="Foto ampliada de la compra" /></div>}
     </div>
   )

@@ -75,7 +75,35 @@ export interface FutureSavingsPlan {
   monthlySaving: number
   incomeOverride: number | null
   pendingExpenses: number
+  goalAmount?: number
   updatedAt: number
+}
+
+export type MonthCutoff = 'day-25' | 'fourth-business-day'
+
+export interface MonthlyIncome {
+  month: string
+  amount: number | null
+  updatedAt: number
+}
+
+export interface MonthCycle {
+  cutoff: MonthCutoff
+  holidays: string[]
+  updatedAt: number
+}
+
+export interface FixedExpensePayment {
+  expenseId: string
+  month: string
+  amount: number | null
+  updatedAt: number
+}
+
+export interface MonthlyBudget {
+  incomes: MonthlyIncome[]
+  cycle?: MonthCycle
+  payments?: FixedExpensePayment[]
 }
 
 export interface FixedExpense {

@@ -1,0 +1,187 @@
+import type { FixedExpense, FixedExpensePayment, MonthCutoff, MonthCycle, MonthlyBudget, MonthlyIncome, Transaction } from './types'
+
+const monthFormat = /^\d{4}-(0[1-9]|1[0-2])$/
+const dateFormat = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
+export const MAX_MONTHLY_INCOME = 1_000_000_000
+export const defaultMonthCycle: MonthCycle = { cutoff: 'day-25', holidays: [], updatedAt: 0 }
+
+export function validMonth(value: string) {
+  return monthFormat.test(value) && value >= '1900-01' && value <= '9998-12'
+}
+
+function validDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !dateFormat.test(value)) return false
+  return new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value
+}
+
+function validVersion(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+export function validMonthlyIncome(value: unknown): value is MonthlyIncome {
+  if (!value || typeof value !== 'object') return false
+  const { month, amount, updatedAt } = value as Partial<MonthlyIncome>
+  return typeof month === 'string' && validMonth(month) && validVersion(updatedAt)
+    && (amount === null || (typeof amount === 'number' && Number.isFinite(amount) && amount >= 0 && amount <= MAX_MONTHLY_INCOME))
+}
+
+export function validMonthCutoff(value: unknown): value is MonthCutoff {
+  return value === 'day-25' || value === 'fourth-business-day'
+}
+
+export function validMonthCycle(value: unknown): value is MonthCycle {
+  if (!value || typeof value !== 'object') return false
+  const { cutoff, holidays, updatedAt } = value as Partial<MonthCycle>
+  return validMonthCutoff(cutoff) && Array.isArray(holidays) && holidays.every(validDate) && validVersion(updatedAt)
+}
+
+export function validMonthlyBudget(value: unknown): value is MonthlyBudget {
+  if (!value || typeof value !== 'object') return false
+  const { incomes, cycle, payments } = value as Partial<MonthlyBudget>
+  return Array.isArray(incomes) && incomes.every(validMonthlyIncome)
+    && (cycle === undefined || validMonthCycle(cycle))
+    && (payments === undefined || (Array.isArray(payments) && payments.every(validFixedExpensePayment)))
+}
+
+function validFixedExpensePayment(value: unknown): value is FixedExpensePayment {
+  if (!value || typeof value !== 'object') return false
+  const payment = value as Partial<FixedExpensePayment>
+  return typeof payment.expenseId === 'string' && payment.expenseId.length > 0 && validMonthlyIncome(payment)
+}
+
+function mergeRecords<T extends { updatedAt: number }>(first: T[], second: T[], key: (record: T) => string) {
+  const records = new Map<string, T>()
+  for (const record of [...first, ...second]) {
+    const id = key(record)
+    const current = records.get(id)
+    if (!current || record.updatedAt > current.updatedAt) records.set(id, record)
+  }
+  return [...records.values()]
+}
+
+export function mergeMonthlyBudgets(first?: MonthlyBudget, second?: MonthlyBudget): MonthlyBudget {
+  const firstCycle = validMonthCycle(first?.cycle) ? first.cycle : undefined
+  const secondCycle = validMonthCycle(second?.cycle) ? second.cycle : undefined
+  return {
+    incomes: mergeRecords(first?.incomes ?? [], second?.incomes ?? [], (income) => income.month),
+    cycle: secondCycle && (!firstCycle || secondCycle.updatedAt > firstCycle.updatedAt) ? secondCycle : firstCycle,
+    payments: mergeRecords(first?.payments ?? [], second?.payments ?? [], (payment) => `${payment.month}:${payment.expenseId}`),
+  }
+}
+
+function monthDate(month: string) {
+  return new Date(`${month}-01T00:00:00Z`)
+}
+
+function dayKey(date: Date) {
+  return date.toISOString().slice(0, 10)
+}
+
+export function moveMonth(month: string, offset: number) {
+  const date = monthDate(month)
+  date.setUTCMonth(date.getUTCMonth() + offset)
+  return dayKey(date).slice(0, 7)
+}
+
+function cutoffDate(month: string, cycle: MonthCycle) {
+  if (cycle.cutoff === 'day-25') return `${month}-25`
+  const date = monthDate(moveMonth(month, 1))
+  const holidays = new Set(cycle.holidays)
+  let weekdays = 0
+  while (weekdays < 4) {
+    date.setUTCDate(date.getUTCDate() - 1)
+    if (!dayKey(date).startsWith(month)) return `${month}-01`
+    const weekday = date.getUTCDay()
+    if (weekday !== 0 && weekday !== 6 && !holidays.has(dayKey(date))) weekdays += 1
+  }
+  return dayKey(date)
+}
+
+export function getBudgetMonth(date: string, cycle: MonthCycle) {
+  const month = date.slice(0, 7)
+  return date >= cutoffDate(month, cycle) ? moveMonth(month, 1) : month
+}
+
+export function getMonthPeriod(month: string, cycle: MonthCycle) {
+  const start = cutoffDate(moveMonth(month, -1), cycle)
+  const endExclusive = cutoffDate(month, cycle)
+  const end = new Date(`${endExclusive}T00:00:00Z`)
+  end.setUTCDate(end.getUTCDate() - 1)
+  return { start, end: dayKey(end), endExclusive }
+}
+
+export function summarizeBudgetMonth(transactions: Transaction[], month: string, budget: MonthlyBudget) {
+  const period = getMonthPeriod(month, budget.cycle ?? defaultMonthCycle)
+  let recordedIncomeCents = 0
+  let expenseCents = 0
+  for (const { type, date, amount, balanceAdjustment } of transactions) {
+    if (balanceAdjustment || date < period.start || date >= period.endExclusive || !Number.isFinite(amount) || amount <= 0) continue
+    if (type === 'income') recordedIncomeCents += Math.round(amount * 100)
+    if (type === 'expense') expenseCents += Math.round(amount * 100)
+  }
+  const exactIncome = budget.incomes.find((income) => income.month === month)?.amount ?? null
+  const incomeCents = exactIncome === null ? recordedIncomeCents : Math.round(exactIncome * 100)
+  return {
+    period,
+    exactIncome,
+    recordedIncome: recordedIncomeCents / 100,
+    income: incomeCents / 100,
+    expenses: expenseCents / 100,
+    difference: (incomeCents - expenseCents) / 100,
+  }
+}
+
+function activeFixedPaymentMonth(today: string, dueDay: number | null) {
+  const month = today.slice(0, 7)
+  return dueDay !== null && today < fixedExpenseDueDate(month, dueDay) ? moveMonth(month, -1) : month
+}
+
+function firstTrackedMonth(expense: FixedExpense) {
+  const date = new Date(expense.createdAt)
+  return Number.isNaN(date.getTime()) ? '' : dayKey(date).slice(0, 7)
+}
+
+export function summarizeFixedPayments(expenses: FixedExpense[], selectedMonth: string | null, today: string, budget: MonthlyBudget) {
+  const payments = new Map((budget.payments ?? []).map((payment) => [`${payment.month}:${payment.expenseId}`, payment.amount]))
+  const occurrences = new Map<string, { month: string, paid: number | null }>()
+  let paidCents = 0
+  let pendingCents = 0
+  for (const expense of expenses) {
+    const activeMonth = activeFixedPaymentMonth(today, expense.dueDay)
+    const firstMonth = firstTrackedMonth(expense)
+    const month = selectedMonth ?? (activeMonth < firstMonth ? firstMonth : activeMonth)
+    const paid = payments.get(`${month}:${expense.id}`) ?? null
+    occurrences.set(expense.id, { month, paid })
+    if (paid !== null) paidCents += Math.round(paid * 100)
+    else if (expense.active) pendingCents += Math.round(expense.amount * 100)
+  }
+  return { occurrences, paid: paidCents / 100, pending: pendingCents / 100, total: (paidCents + pendingCents) / 100 }
+}
+
+export function fixedExpenseDueDate(month: string, dueDay: number) {
+  const lastDay = monthDate(moveMonth(month, 1))
+  lastDay.setUTCDate(0)
+  return `${month}-${String(Math.min(dueDay, lastDay.getUTCDate())).padStart(2, '0')}`
+}
+
+export function getFixedExpenseNotices(expenses: FixedExpense[], today: string, budget: MonthlyBudget) {
+  const soon = new Date(`${today}T00:00:00Z`)
+  soon.setUTCDate(soon.getUTCDate() + 7)
+  const lastDate = dayKey(soon)
+  const notices: { expense: FixedExpense, date: string, status: 'Vencido' | 'Hoy' | 'Próximo' }[] = []
+  const paid = new Set((budget.payments ?? []).filter((payment) => payment.amount !== null).map((payment) => `${payment.month}:${payment.expenseId}`))
+  for (const expense of expenses) {
+    if (!expense.active || expense.dueDay === null) continue
+    const currentPeriod = activeFixedPaymentMonth(today, expense.dueDay)
+    const currentDate = fixedExpenseDueDate(currentPeriod, expense.dueDay)
+    const nextPeriod = moveMonth(currentPeriod, 1)
+    const nextDate = fixedExpenseDueDate(nextPeriod, expense.dueDay)
+    if (currentPeriod >= firstTrackedMonth(expense) && !paid.has(`${currentPeriod}:${expense.id}`)) {
+      notices.push({ expense, date: currentDate, status: currentDate === today ? 'Hoy' : 'Vencido' })
+    }
+    if (nextDate <= lastDate && !paid.has(`${nextPeriod}:${expense.id}`)) {
+      notices.push({ expense, date: nextDate, status: 'Próximo' })
+    }
+  }
+  return notices.sort((a, b) => a.date.localeCompare(b.date))
+}

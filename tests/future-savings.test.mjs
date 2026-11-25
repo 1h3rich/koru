@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { calculateFutureSavings, getMonthlySavingsHistory } from '../src/futureSavings.ts'
+import { calculateFutureSavings, calculateSavingsGoal, getMonthlySavingsHistory, validFutureSavingsPlan } from '../src/futureSavings.ts'
 
 const plan = { monthlySaving: 300, incomeOverride: null, pendingExpenses: 100, updatedAt: 1 }
 const row = (type, amount, date = '2026-11-02') => ({ id: crypto.randomUUID(), type, amount, date, category: 'Prueba', description: '', createdAt: 1 })
@@ -57,4 +57,13 @@ test('Monthly savings history keeps past months and highlights deficits', () => 
     { month: '2026-12', income: 1000, expenses: 1030, savings: -30 },
     { month: '2026-11', income: 1000, expenses: 800, savings: 200 },
   ])
+})
+
+test('A savings goal uses the planned income and active fixed expenses, rounding up to a full month', () => {
+  const expenses = [{ amount: 700, active: true }, { amount: 200, active: false }]
+  assert.deepEqual(calculateSavingsGoal(1500, expenses, 10_000), { fixedTotal: 700, free: 800, months: 13 })
+  assert.equal(calculateSavingsGoal(500, expenses, 10_000).months, null)
+  assert.equal(calculateSavingsGoal(0, expenses, 10_000).free, -700)
+  assert.equal(calculateSavingsGoal(null, expenses, 10_000).free, null)
+  assert.ok(validFutureSavingsPlan({ ...plan, goalAmount: 10000 }))
 })

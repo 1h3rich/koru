@@ -1057,14 +1057,61 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .fixed-expense-copy small { margin-top: 4px; color: var(--muted); font-size: .58rem; }
 .fixed-expense-amount { font-family: Georgia, serif; font-size: .83rem; font-weight: 400; white-space: nowrap; }
 .fixed-expense-actions { grid-column: 2 / -1; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
-.fixed-expense-actions > button:first-child { min-height: 34px; padding: 0 10px; color: var(--blue); border: 1px solid #c5d9f3; border-radius: 9px; background: var(--blue-soft); font-size: .6rem; font-weight: 800; }
+.fixed-expense-actions > button:not(.icon-button) { min-height: 34px; padding: 0 10px; color: var(--blue); border: 1px solid var(--line); border-radius: 9px; background: var(--blue-soft); font-size: .65rem; font-weight: 800; }
 .fixed-expense-actions .icon-button { width: 34px; height: 34px; color: var(--blue); }
 .fixed-expense-actions .fixed-expense-delete { color: var(--red); }
 .fixed-expense-actions .fixed-expense-delete.confirming { width: auto; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; color: white; background: var(--red); font-size: .55rem; font-weight: 800; }
 .fixed-expense-actions svg { width: 14px; }
+.months-content { display: grid; gap: 16px; padding: 20px clamp(16px, 3vw, 24px) 24px; border-top: 1px solid var(--line); }
+.month-navigation, .fixed-payment-period { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; gap: 8px; }
+.month-navigation > button { width: 42px; min-height: 50px; border-color: var(--line); color: var(--blue); font-size: 1.4rem; }
+.months-content input[type="month"], .fixed-payment-period input { display: block; min-inline-size: 0; max-inline-size: 100%; }
+.months-content input[type="month"]::-webkit-date-and-time-value, .fixed-payment-period input::-webkit-date-and-time-value { min-width: 0; text-align: left; }
+.month-period { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); font-size: .8rem; }
+.month-period svg { flex: 0 0 16px; color: var(--blue); }
+.month-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--line); }
+.month-totals > div { min-width: 0; padding: 12px; background: var(--white); }
+.month-totals dt { color: var(--muted); font-size: .75rem; }
+.month-totals dd { margin: 6px 0 0; overflow-wrap: anywhere; font-weight: 800; font-variant-numeric: tabular-nums; }
+.month-totals .month-difference { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; grid-column: 1 / -1; color: var(--blue); background: var(--blue-soft); }
+.month-difference dd { margin: 0; font-size: 1.15rem; }
+.month-difference .negative, .month-income-form .form-error { color: var(--red); }
+.month-income-form, .month-holidays { display: grid; gap: 10px; }
+.month-income-form p, .month-cycle-settings p { margin: 0; color: var(--muted); font-size: .76rem; line-height: 1.45; }
+.month-income-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.month-income-actions button, .month-holidays > button, .fixed-payment-period > button { padding: 0 12px; }
+.month-income-actions .secondary-button, .month-holidays > button, .fixed-payment-period > button { border-color: var(--line); color: var(--blue); }
+.month-cycle-settings { min-width: 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.month-cycle-settings summary { cursor: pointer; font-size: .82rem; font-weight: 800; }
+.month-cycle-settings summary span { margin-inline-start: 4px; color: var(--muted); font-size: .76rem; font-weight: 500; }
+.month-cycle-settings > :not(summary) { margin-top: 10px; }
+.month-holidays ul, .fixed-payment-notices ul { display: grid; padding: 0; margin: 0; list-style: none; }
+.month-holidays li, .fixed-payment-notices li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: .82rem; }
+.month-holidays li button { color: var(--red); }
+.month-holidays li svg { width: 16px; }
+.fixed-payment-period { grid-template-columns: minmax(0, 1fr) auto; margin: 16px 0 12px; }
+.fixed-expenses-content > .fixed-expenses-meter { margin-top: 12px; }
+.fixed-expense-actions { flex-wrap: wrap; }
+.fixed-expense-actions .fixed-payment-paid, .fixed-expense-actions .fixed-payment-pending { display: inline-flex; align-items: center; gap: 4px; }
+.fixed-expense-actions > button.fixed-payment-paid:not(.icon-button) { color: var(--green); background: color-mix(in srgb, var(--green) 12%, var(--white)); }
+.fixed-payment-notices { padding: 0 16px; }
+.fixed-payment-notices summary { display: flex; align-items: center; gap: 8px; min-height: 46px; cursor: pointer; font-size: .88rem; list-style: none; }
+.fixed-payment-notices summary::-webkit-details-marker { display: none; }
+.fixed-payment-notices summary svg { width: 17px; color: var(--blue); }
+.fixed-payment-notices summary > span { margin-inline-start: auto; color: var(--blue); }
+.fixed-payment-notices small { display: block; margin-top: 3px; color: var(--muted); }
+.fixed-payment-notices li b { white-space: nowrap; }
 
 /* Monthly savings plan uses the same form and panel language as loans. */
 .future-savings-content { padding: 0 24px 24px; }
+.savings-goal-content { display: grid; gap: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.savings-goal-form { display: grid; gap: 14px; }
+.savings-goal-form .form-error { color: var(--red); }
+.savings-goal-result { display: grid; gap: 5px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.savings-goal-result span, .savings-goal-result p { margin: 0; color: var(--muted); font-size: .76rem; line-height: 1.45; }
+.savings-goal-result strong { color: var(--blue); font-size: 1.2rem; }
+.savings-goal-content .savings-method { margin-top: 0; }
+.savings-goal-content input[type="month"]::-webkit-date-and-time-value { min-width: 0; text-align: left; }
 .future-savings-content .field small { color: var(--muted); font-size: .78rem; }
 .savings-auto { background: none; border: 0; color: var(--blue); padding: 0; text-align: left; font: inherit; font-size: .78rem; cursor: pointer; }
 .savings-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 22px 0 14px; }

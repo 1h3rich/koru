@@ -1,13 +1,15 @@
-import type { FixedExpense, FutureSavingsPlan, Loan, ReserveMovement, Transaction, TransactionFormDraftRecord } from './types'
+import type { FixedExpense, FutureSavingsPlan, Loan, MonthlyBudget, ReserveMovement, Transaction, TransactionFormDraftRecord } from './types'
 import { buildPurchaseBatch, getPurchaseBatchSources, withoutPurchaseBatchImages } from './purchaseBatch'
 import { validFutureSavingsPlan } from './futureSavings'
 import { validFixedExpense } from './fixedExpenses'
+import { mergeMonthlyBudgets, validMonthlyBudget } from './monthlyBudget'
 
 const TRANSACTIONS_KEY = 'koru.transactions.v1'
 const RESERVES_KEY = 'koru.reserves.v1'
 const LOANS_KEY = 'koru.loans.v1'
 const FUTURE_SAVINGS_KEY = 'koru.future-savings.v1'
 const FIXED_EXPENSES_KEY = 'koru.fixed-expenses.v1'
+const MONTHLY_BUDGET_KEY = 'koru.monthly-budget.v1'
 const TRANSACTION_DRAFT_KEY = 'koru.transaction-draft.v1'
 const DELETIONS_KEY = 'koru.deletions.v1'
 const SESSION_TOKEN_KEY = 'koru.cloud.token.v1'
@@ -23,6 +25,7 @@ export interface CloudSnapshot {
   reserveMovements: ReserveMovement[]
   loans: Loan[]
   fixedExpenses: FixedExpense[]
+  monthlyBudget?: MonthlyBudget
   deletions?: DeletionLog
   updatedAt: number
   futureSavings?: FutureSavingsPlan
@@ -146,6 +149,7 @@ function normalizeSnapshot(snapshot: Partial<CloudSnapshot>): CloudSnapshot {
     reserveMovements: Array.isArray(snapshot.reserveMovements) ? snapshot.reserveMovements : [],
     loans: Array.isArray(snapshot.loans) ? snapshot.loans : [],
     fixedExpenses: Array.isArray(snapshot.fixedExpenses) ? snapshot.fixedExpenses.filter(validFixedExpense) : [],
+    monthlyBudget: validMonthlyBudget(snapshot.monthlyBudget) ? mergeMonthlyBudgets(snapshot.monthlyBudget) : undefined,
     deletions: {
       transactions: snapshot.deletions?.transactions ?? {},
       reserveMovements: snapshot.deletions?.reserveMovements ?? {},
@@ -190,6 +194,7 @@ function mergeSnapshots(first: CloudSnapshot, second: CloudSnapshot): CloudSnaps
     reserveMovements: mergeCollection(first.reserveMovements, second.reserveMovements, deletions.reserveMovements),
     loans: mergeCollection(first.loans, second.loans, deletions.loans),
     fixedExpenses: mergeCollection(first.fixedExpenses, second.fixedExpenses, deletions.fixedExpenses),
+    monthlyBudget: mergeMonthlyBudgets(first.monthlyBudget, second.monthlyBudget),
     deletions,
     updatedAt: Math.max(first.updatedAt, second.updatedAt, Date.now()),
     futureSavings: (second.futureSavings?.updatedAt ?? -1) > (first.futureSavings?.updatedAt ?? -1) ? second.futureSavings : first.futureSavings,
@@ -212,6 +217,7 @@ function localSnapshot(): CloudSnapshot {
     reserveMovements: loadReserveMovements(),
     loans: loadLoans(),
     fixedExpenses: loadFixedExpenses(),
+    monthlyBudget: loadMonthlyBudget(),
     deletions: loadDeletions(),
     updatedAt: Date.now(),
     futureSavings: loadFutureSavingsPlan() ?? undefined,
@@ -220,6 +226,7 @@ function localSnapshot(): CloudSnapshot {
 }
 
 function saveSnapshotLocally(snapshot: CloudSnapshot): void {
+  const monthlyBudget = mergeMonthlyBudgets(loadMonthlyBudget(), snapshot.monthlyBudget)
   saveTransactions(snapshot.transactions)
   saveReserveMovements(snapshot.reserveMovements)
   saveLoans(snapshot.loans ?? [])
@@ -227,6 +234,7 @@ function saveSnapshotLocally(snapshot: CloudSnapshot): void {
   localStorage.setItem(DELETIONS_KEY, JSON.stringify(snapshot.deletions ?? emptyDeletions()))
   if (snapshot.futureSavings) localStorage.setItem(FUTURE_SAVINGS_KEY, JSON.stringify(snapshot.futureSavings))
   if (snapshot.transactionDraft) localStorage.setItem(TRANSACTION_DRAFT_KEY, JSON.stringify(snapshot.transactionDraft))
+  localStorage.setItem(MONTHLY_BUDGET_KEY, JSON.stringify(monthlyBudget))
 }
 
 function sessionCredentials(): { token: string, encryptionKey: string } | null {
@@ -306,7 +314,7 @@ export async function syncFromCloud(): Promise<CloudSnapshot | null> {
   return synchronizeSnapshot(localSnapshot(), credentials.token, credentials.encryptionKey)
 }
 
-export function syncToCloud(transactions: Transaction[], reserveMovements: ReserveMovement[], loans: Loan[], futureSavings = loadFutureSavingsPlan(), transactionDraft = loadTransactionDraftRecord(), fixedExpenses = loadFixedExpenses()): Promise<void> {
+export function syncToCloud(transactions: Transaction[], reserveMovements: ReserveMovement[], loans: Loan[], futureSavings = loadFutureSavingsPlan(), transactionDraft = loadTransactionDraftRecord(), fixedExpenses = loadFixedExpenses(), monthlyBudget?: MonthlyBudget): Promise<void> {
   const previous = localSnapshot()
   const now = Date.now()
   const deletions = mergeDeletionLogs(previous.deletions, emptyDeletions())
@@ -314,7 +322,7 @@ export function syncToCloud(transactions: Transaction[], reserveMovements: Reser
   recordMissingIds(previous.reserveMovements, reserveMovements, deletions.reserveMovements, now)
   recordMissingIds(previous.loans, loans, deletions.loans, now)
   recordMissingIds(previous.fixedExpenses, fixedExpenses, deletions.fixedExpenses, now)
-  const snapshot: CloudSnapshot = { transactions: compactTransactions(transactions), reserveMovements, loans, fixedExpenses, deletions, updatedAt: now, futureSavings: futureSavings ?? undefined, transactionDraft: transactionDraft ?? undefined }
+  const snapshot: CloudSnapshot = { transactions: compactTransactions(transactions), reserveMovements, loans, fixedExpenses, deletions, updatedAt: now, futureSavings: futureSavings ?? undefined, transactionDraft: transactionDraft ?? undefined, monthlyBudget: mergeMonthlyBudgets(previous.monthlyBudget, monthlyBudget) }
   saveSnapshotLocally(snapshot)
 
   const credentials = sessionCredentials()
@@ -451,6 +459,15 @@ export function loadFixedExpenses(): FixedExpense[] {
     return Array.isArray(saved) ? saved.filter(validFixedExpense) : []
   } catch {
     return []
+  }
+}
+
+export function loadMonthlyBudget(): MonthlyBudget {
+  try {
+    const budget: unknown = JSON.parse(localStorage.getItem(MONTHLY_BUDGET_KEY) ?? 'null')
+    return validMonthlyBudget(budget) ? budget : { incomes: [] }
+  } catch {
+    return { incomes: [] }
   }
 }
 

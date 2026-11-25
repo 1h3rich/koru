@@ -1,0 +1,70 @@
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import {
+  defaultMonthCycle, fixedExpenseDueDate, getBudgetMonth, getFixedExpenseNotices,
+  getMonthPeriod, mergeMonthlyBudgets, summarizeBudgetMonth, summarizeFixedPayments,
+} from '../src/monthlyBudget.ts'
+
+const gym = { id: 'gym', name: 'Gimnasio', amount: 25.99, active: true, dueDay: 4, createdAt: Date.UTC(2026, 9, 1) }
+const initialBudget = { incomes: [], payments: [{ expenseId: gym.id, month: '2026-11', amount: 25.99, updatedAt: 1 }] }
+
+test('Pay received on the 25th goes into the next month across year boundaries', () => {
+  assert.equal(getBudgetMonth('2026-11-24', defaultMonthCycle), '2026-11')
+  assert.equal(getBudgetMonth('2026-11-25', defaultMonthCycle), '2026-12')
+  assert.equal(getBudgetMonth('2026-12-25', defaultMonthCycle), '2027-01')
+  assert.deepEqual(getMonthPeriod('2026-12', defaultMonthCycle), { start: '2026-11-25', end: '2026-12-24', endExclusive: '2026-12-25' })
+})
+
+test('Fourth working day from month end skips weekends and configured holidays', () => {
+  const cycle = { cutoff: 'fourth-business-day', holidays: [], updatedAt: 1 }
+  assert.equal(getMonthPeriod('2026-12', cycle).endExclusive, '2026-12-28')
+  const withHoliday = { ...cycle, holidays: ['2026-12-31'] }
+  assert.equal(getMonthPeriod('2026-12', withHoliday).endExclusive, '2026-12-25')
+  assert.equal(getBudgetMonth('2026-12-25', withHoliday), '2027-01')
+})
+
+test('Exact income replaces movements, while the result uses expenses within the selected cycle', () => {
+  const transactions = [
+    { type: 'income', amount: 500, date: '2026-11-25' },
+    { type: 'expense', amount: 70, date: '2026-12-24' },
+    { type: 'expense', amount: 40, date: '2026-12-25' },
+    { type: 'expense', amount: 45, date: '2026-12-12', balanceAdjustment: true },
+  ]
+  const budget = { incomes: [{ month: '2026-12', amount: 750.10, updatedAt: 1 }] }
+  const summary = summarizeBudgetMonth(transactions, '2026-12', budget)
+  assert.equal(summary.recordedIncome, 500)
+  assert.equal(summary.income, 750.10)
+  assert.equal(summary.expenses, 70)
+  assert.equal(summary.difference, 680.10)
+  assert.equal(summarizeBudgetMonth(transactions, '2026-12', { incomes: [{ month: '2026-12', amount: 0, updatedAt: 1 }] }).income, 0)
+})
+
+test('A dated payment resets on its own due day and keeps its prior paid history', () => {
+  const before = summarizeFixedPayments([gym], null, '2026-12-03', initialBudget)
+  assert.equal(before.paid, 25.99)
+  assert.equal(before.pending, 0)
+  const after = summarizeFixedPayments([gym], null, '2026-12-04', initialBudget)
+  assert.equal(after.paid, 0)
+  assert.equal(after.pending, 25.99)
+  assert.equal(summarizeFixedPayments([gym], '2026-11', '2026-12-04', initialBudget).paid, 25.99)
+  assert.equal(fixedExpenseDueDate('2028-02', 31), '2028-02-29')
+  assert.equal(fixedExpenseDueDate('2027-02', 31), '2027-02-28')
+})
+
+test('The next payment warns seven days ahead even when the previous one was paid', () => {
+  assert.deepEqual(getFixedExpenseNotices([gym], '2026-11-26', initialBudget), [])
+  assert.deepEqual(getFixedExpenseNotices([gym], '2026-11-27', initialBudget).map(({ date, status }) => [date, status]), [['2026-12-04', 'Próximo']])
+  assert.equal(getFixedExpenseNotices([gym], '2026-12-04', initialBudget)[0].status, 'Hoy')
+  assert.equal(getFixedExpenseNotices([gym], '2026-12-05', initialBudget)[0].status, 'Vencido')
+  assert.deepEqual(getFixedExpenseNotices([{ ...gym, active: false }], '2026-12-04', initialBudget), [])
+  assert.deepEqual(getFixedExpenseNotices([{ ...gym, dueDay: null }], '2026-12-04', initialBudget), [])
+})
+
+test('Sync combines separate months and the newest payment state wins even when removed', () => {
+  const second = { incomes: [{ month: '2026-12', amount: 500, updatedAt: 2 }], payments: [{ expenseId: gym.id, month: '2026-11', amount: null, updatedAt: 2 }] }
+  const merged = mergeMonthlyBudgets(initialBudget, second)
+  assert.equal(merged.incomes[0].amount, 500)
+  assert.equal(merged.payments[0].amount, null)
+  assert.equal(mergeMonthlyBudgets(merged, initialBudget).payments[0].amount, null)
+  assert.equal(mergeMonthlyBudgets(merged, { incomes: [{ month: '2026-11', amount: 700, updatedAt: 1 }] }).incomes.length, 2)
+})

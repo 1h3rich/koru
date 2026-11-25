@@ -1,4 +1,4 @@
-import type { FutureSavingsPlan, Transaction } from './types'
+import type { FixedExpense, FutureSavingsPlan, Transaction } from './types'
 
 export function validFutureSavingsPlan(plan: unknown): plan is FutureSavingsPlan {
   if (!plan || typeof plan !== 'object') return false
@@ -6,7 +6,19 @@ export function validFutureSavingsPlan(plan: unknown): plan is FutureSavingsPlan
   const amount = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 1_000_000_000
   return amount(value.monthlySaving) && amount(value.pendingExpenses)
     && (value.incomeOverride === null || amount(value.incomeOverride))
+    && (value.goalAmount === undefined || amount(value.goalAmount))
     && typeof value.updatedAt === 'number' && Number.isFinite(value.updatedAt) && value.updatedAt >= 0
+}
+
+export function calculateSavingsGoal(income: number | null, expenses: FixedExpense[], goal: number) {
+  const fixedCents = expenses.reduce((sum, expense) => expense.active ? sum + Math.round(expense.amount * 100) : sum, 0)
+  const freeCents = income === null ? null : Math.round(income * 100) - fixedCents
+  const goalCents = Math.round(goal * 100)
+  return {
+    fixedTotal: fixedCents / 100,
+    free: freeCents === null ? null : freeCents / 100,
+    months: freeCents !== null && freeCents > 0 && goalCents > 0 ? Math.ceil(goalCents / freeCents) : null,
+  }
 }
 
 export function calculateFutureSavings(transactions: Transaction[], plan: FutureSavingsPlan, month: string, now = new Date()) {
