@@ -93,6 +93,15 @@ export interface MonthCycle {
   updatedAt: number
 }
 
+export interface MonthlyIncomeSource {
+  id: string
+  month: string
+  name: string
+  payday: MonthCutoff
+  amount: number | null
+  updatedAt: number
+}
+
 export interface FixedExpensePayment {
   expenseId: string
   month: string
@@ -102,6 +111,7 @@ export interface FixedExpensePayment {
 
 export interface MonthlyBudget {
   incomes: MonthlyIncome[]
+  incomeSources?: MonthlyIncomeSource[]
   cycle?: MonthCycle
   payments?: FixedExpensePayment[]
 }

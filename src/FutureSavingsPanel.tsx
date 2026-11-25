@@ -1,8 +1,9 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { CheckIcon, SavingsIcon } from './Icons'
+import MonthPicker from './MonthPicker'
 import { MonthlyIncomeForm } from './MonthsPanel'
 import { calculateSavingsGoal, getMonthlySavingsHistory } from './futureSavings'
-import { defaultMonthCycle, getBudgetMonth, MAX_MONTHLY_INCOME, validMonth } from './monthlyBudget'
+import { defaultMonthCycle, getBudgetMonth, getMonthlyIncomeDetails, MAX_MONTHLY_INCOME } from './monthlyBudget'
 import { parseBudgetAmount } from './money'
 import type { FixedExpense, FutureSavingsPlan, MonthlyBudget, Transaction } from './types'
 
@@ -23,8 +24,7 @@ interface Props {
 export default function FutureSavingsPanel({ transactions, fixedExpenses, monthlyBudget, today, plan, onSave, onSaveMonthlyBudget }: Props) {
   const [selected, setSelected] = useState<string | null>(null)
   const month = selected ?? getBudgetMonth(today, monthlyBudget.cycle ?? defaultMonthCycle)
-  const savedIncome = monthlyBudget.incomes.find((entry) => entry.month === month)
-  const income = savedIncome?.amount ?? null
+  const { manual, planned, total: income } = getMonthlyIncomeDetails(month, monthlyBudget)
   const history = useMemo(() => getMonthlySavingsHistory(transactions), [transactions])
 
   return (
@@ -37,18 +37,18 @@ export default function FutureSavingsPanel({ transactions, fixedExpenses, monthl
       <div className="future-savings-content savings-goal-content">
         <div className="field">
           <label htmlFor="savings-month">Mes de referencia</label>
-          <input id="savings-month" type="month" min="1900-01" max="9998-12" value={month} onChange={(event) => {
-            if (validMonth(event.target.value)) setSelected(event.target.value)
-          }} />
+          <MonthPicker id="savings-month" value={month} onChange={setSelected} />
         </div>
-        <MonthlyIncomeForm
-          key={`${month}:${income}`}
-          fieldId="savings-income"
-          month={month}
-          amount={income}
-          lastUpdated={savedIncome?.updatedAt}
-          onSave={onSaveMonthlyBudget}
-        />
+        {planned === null ? (
+          <MonthlyIncomeForm
+            key={`${month}:${income}`}
+            fieldId="savings-income"
+            month={month}
+            amount={income}
+            lastUpdated={manual?.updatedAt}
+            onSave={onSaveMonthlyBudget}
+          />
+        ) : <p className="monthly-income-note">Ingresos recurrentes de «Meses» · {currency.format(planned)}</p>}
         <SavingsGoalForm key={plan?.goalAmount ?? 'empty-goal'} plan={plan} income={income} expenses={fixedExpenses} onSave={onSave} />
         <details className="savings-method">
           <summary>Historial de ahorro</summary>

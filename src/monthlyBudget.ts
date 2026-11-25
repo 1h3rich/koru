@@ -1,4 +1,4 @@
-import type { FixedExpense, FixedExpensePayment, MonthCutoff, MonthCycle, MonthlyBudget, MonthlyIncome, Transaction } from './types'
+import type { FixedExpense, FixedExpensePayment, MonthCutoff, MonthCycle, MonthlyBudget, MonthlyIncome, MonthlyIncomeSource, Transaction } from './types'
 
 const monthFormat = /^\d{4}-(0[1-9]|1[0-2])$/
 const dateFormat = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
@@ -37,10 +37,19 @@ export function validMonthCycle(value: unknown): value is MonthCycle {
 
 export function validMonthlyBudget(value: unknown): value is MonthlyBudget {
   if (!value || typeof value !== 'object') return false
-  const { incomes, cycle, payments } = value as Partial<MonthlyBudget>
+  const { incomes, cycle, payments, incomeSources } = value as Partial<MonthlyBudget>
   return Array.isArray(incomes) && incomes.every(validMonthlyIncome)
+    && (incomeSources === undefined || (Array.isArray(incomeSources) && incomeSources.every(validMonthlyIncomeSource)))
     && (cycle === undefined || validMonthCycle(cycle))
     && (payments === undefined || (Array.isArray(payments) && payments.every(validFixedExpensePayment)))
+}
+
+function validMonthlyIncomeSource(value: unknown): value is MonthlyIncomeSource {
+  if (!value || typeof value !== 'object') return false
+  const source = value as Partial<MonthlyIncomeSource>
+  return typeof source.id === 'string' && source.id.length > 0
+    && typeof source.name === 'string' && source.name.trim().length > 0 && source.name.length <= 80
+    && validMonthCutoff(source.payday) && validMonthlyIncome(source)
 }
 
 function validFixedExpensePayment(value: unknown): value is FixedExpensePayment {
@@ -64,6 +73,7 @@ export function mergeMonthlyBudgets(first?: MonthlyBudget, second?: MonthlyBudge
   const secondCycle = validMonthCycle(second?.cycle) ? second.cycle : undefined
   return {
     incomes: mergeRecords(first?.incomes ?? [], second?.incomes ?? [], (income) => income.month),
+    incomeSources: mergeRecords(first?.incomeSources ?? [], second?.incomeSources ?? [], (source) => `${source.month}:${source.id}`),
     cycle: secondCycle && (!firstCycle || secondCycle.updatedAt > firstCycle.updatedAt) ? secondCycle : firstCycle,
     payments: mergeRecords(first?.payments ?? [], second?.payments ?? [], (payment) => `${payment.month}:${payment.expenseId}`),
   }
@@ -110,6 +120,25 @@ export function getMonthPeriod(month: string, cycle: MonthCycle) {
   return { start, end: dayKey(end), endExclusive }
 }
 
+export function getMonthlyIncomeDetails(month: string, budget: MonthlyBudget) {
+  const latest = new Map<string, MonthlyIncomeSource>()
+  for (const source of budget.incomeSources ?? []) {
+    if (source.month > month) continue
+    const previous = latest.get(source.id)
+    if (!previous || source.month >= previous.month) latest.set(source.id, source)
+  }
+  const payMonth = moveMonth(month, -1)
+  const cycle = budget.cycle ?? defaultMonthCycle
+  const sources = [...latest.values()].flatMap((source) => source.amount === null ? [] : [{
+    ...source,
+    amount: source.amount,
+    date: cutoffDate(payMonth, { ...cycle, cutoff: source.payday }),
+  }]).sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name, 'es'))
+  const manual = budget.incomes.find((entry) => entry.month === month)
+  const planned = sources.length > 0 ? sources.reduce((sum, source) => sum + Math.round(source.amount * 100), 0) / 100 : null
+  return { sources, planned, manual, total: planned ?? manual?.amount ?? null }
+}
+
 export function summarizeBudgetMonth(transactions: Transaction[], month: string, budget: MonthlyBudget) {
   const period = getMonthPeriod(month, budget.cycle ?? defaultMonthCycle)
   let recordedIncomeCents = 0
@@ -119,11 +148,13 @@ export function summarizeBudgetMonth(transactions: Transaction[], month: string,
     if (type === 'income') recordedIncomeCents += Math.round(amount * 100)
     if (type === 'expense') expenseCents += Math.round(amount * 100)
   }
-  const exactIncome = budget.incomes.find((income) => income.month === month)?.amount ?? null
+  const details = getMonthlyIncomeDetails(month, budget)
+  const exactIncome = details.total
   const incomeCents = exactIncome === null ? recordedIncomeCents : Math.round(exactIncome * 100)
   return {
     period,
     exactIncome,
+    incomeDetails: details,
     recordedIncome: recordedIncomeCents / 100,
     income: incomeCents / 100,
     expenses: expenseCents / 100,

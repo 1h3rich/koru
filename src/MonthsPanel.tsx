@@ -1,7 +1,9 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { CalendarIcon, CheckIcon, TrashIcon } from './Icons'
+import MonthPicker from './MonthPicker'
+import MonthlyIncomeSources from './MonthlyIncomeSources'
 import { parseBudgetAmount } from './money'
-import { defaultMonthCycle, getBudgetMonth, MAX_MONTHLY_INCOME, moveMonth, summarizeBudgetMonth, validMonth, validMonthCutoff } from './monthlyBudget'
+import { defaultMonthCycle, getBudgetMonth, MAX_MONTHLY_INCOME, moveMonth, summarizeBudgetMonth, validMonthCutoff } from './monthlyBudget'
 import type { MonthCycle, MonthlyBudget, Transaction } from './types'
 
 const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
@@ -20,7 +22,7 @@ export default function MonthsPanel({ budget, today, transactions, onSave }: Pro
   const cycle = budget.cycle ?? defaultMonthCycle
   const month = selected ?? getBudgetMonth(today, cycle)
   const summary = useMemo(() => summarizeBudgetMonth(transactions, month, budget), [transactions, month, budget])
-  const savedIncome = budget.incomes.find((entry) => entry.month === month)
+  const { manual, planned, sources } = summary.incomeDetails
 
   return (
     <details className="panel months-panel">
@@ -34,9 +36,7 @@ export default function MonthsPanel({ budget, today, transactions, onSave }: Pro
           <button className="secondary-button" type="button" aria-label="Mes anterior" onClick={() => setSelected(moveMonth(month, -1))} disabled={month === '1900-01'}>‹</button>
           <div className="field">
             <label htmlFor="budget-month">Mes del presupuesto</label>
-            <input id="budget-month" type="month" min="1900-01" max="9998-12" value={month} onChange={(event) => {
-              if (validMonth(event.target.value)) setSelected(event.target.value)
-            }} />
+            <MonthPicker id="budget-month" value={month} onChange={setSelected} />
           </div>
           <button className="secondary-button" type="button" aria-label="Mes siguiente" onClick={() => setSelected(moveMonth(month, 1))} disabled={month === '9998-12'}>›</button>
         </div>
@@ -46,15 +46,20 @@ export default function MonthsPanel({ budget, today, transactions, onSave }: Pro
           <div><dt>Gastos registrados</dt><dd>{currency.format(summary.expenses)}</dd></div>
           <div className="month-difference"><dt>Diferencia</dt><dd className={summary.difference < 0 ? 'negative' : ''}>{currency.format(summary.difference)}</dd></div>
         </dl>
-        <MonthlyIncomeForm
-          key={`${month}:${summary.exactIncome}`}
-          month={month}
-          amount={summary.exactIncome}
-          lastUpdated={savedIncome?.updatedAt}
-          recorded={summary.recordedIncome}
-          onSave={onSave}
-        />
-        <CycleSettings cycle={cycle} onSave={onSave} />
+        <MonthlyIncomeSources key={month} month={month} sources={sources} onSave={onSave} />
+        {planned === null ? (
+          <MonthlyIncomeForm
+            key={`${month}:${manual?.amount}`}
+            month={month}
+            amount={manual?.amount ?? null}
+            lastUpdated={manual?.updatedAt}
+            recorded={summary.recordedIncome}
+            onSave={onSave}
+          />
+        ) : (
+          <p className="monthly-income-note">Este presupuesto usa {currency.format(planned)} de ingresos recurrentes. En Movimientos figuran {currency.format(summary.recordedIncome)} cobrados en el periodo.</p>
+        )}
+        <CycleSettings cycle={cycle} showHolidays={sources.some((source) => source.payday === 'fourth-business-day')} onSave={onSave} />
       </div>
     </details>
   )
@@ -90,14 +95,14 @@ export function MonthlyIncomeForm({ month, amount, recorded, onSave, lastUpdated
         : <p>En Movimientos figuran {currency.format(recorded)}. Si guardas un total aquí, se usará esa cifra para este resumen.</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="month-income-actions">
-        <button className="primary-button" type="submit"><CheckIcon /> Guardar ingresos</button>
+        <button className="primary-button" type="submit"><CheckIcon /> Guardar total</button>
         {recorded !== undefined && amount !== null && <button className="secondary-button" type="button" onClick={() => saveIncome(null)}>Usar movimientos</button>}
       </div>
     </form>
   )
 }
 
-function CycleSettings({ cycle, onSave }: Pick<Props, 'onSave'> & { cycle: MonthCycle }) {
+function CycleSettings({ cycle, showHolidays, onSave }: Pick<Props, 'onSave'> & { cycle: MonthCycle, showHolidays: boolean }) {
   const [holiday, setHoliday] = useState('')
 
   function saveCycle(changes: Partial<MonthCycle>) {
@@ -123,7 +128,7 @@ function CycleSettings({ cycle, onSave }: Pick<Props, 'onSave'> & { cycle: Month
         </select>
       </div>
       <p>El día del corte ya pertenece al mes siguiente. El corte se aplica a todos los periodos del resumen.</p>
-      {cycle.cutoff === 'fourth-business-day' && (
+      {(cycle.cutoff === 'fourth-business-day' || showHolidays) && (
         <form className="month-holidays" onSubmit={addHoliday}>
           <p>Se cuentan los días de lunes a viernes. Añade los festivos de tu empresa para excluirlos.</p>
           <div className="field">

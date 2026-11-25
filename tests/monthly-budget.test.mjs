@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  defaultMonthCycle, fixedExpenseDueDate, getBudgetMonth, getFixedExpenseNotices,
-  getMonthPeriod, mergeMonthlyBudgets, summarizeBudgetMonth, summarizeFixedPayments,
+  defaultMonthCycle, fixedExpenseDueDate, getBudgetMonth, getFixedExpenseNotices, getMonthlyIncomeDetails,
+  getMonthPeriod, mergeMonthlyBudgets, summarizeBudgetMonth, summarizeFixedPayments, validMonthlyBudget,
 } from '../src/monthlyBudget.ts'
 
 const gym = { id: 'gym', name: 'Gimnasio', amount: 25.99, active: true, dueDay: 4, createdAt: Date.UTC(2026, 9, 1) }
@@ -67,4 +67,33 @@ test('Sync combines separate months and the newest payment state wins even when 
   assert.equal(merged.payments[0].amount, null)
   assert.equal(mergeMonthlyBudgets(merged, initialBudget).payments[0].amount, null)
   assert.equal(mergeMonthlyBudgets(merged, { incomes: [{ month: '2026-11', amount: 700, updatedAt: 1 }] }).incomes.length, 2)
+})
+
+const payday25 = { id: 'a', name: 'Cobro del 25', month: '2026-12', payday: 'day-25', amount: 500.10, updatedAt: 1 }
+const lastWeek = { id: 'b', name: 'Nómina', month: '2026-12', payday: 'fourth-business-day', amount: 700.20, updatedAt: 2 }
+
+test('Both recurring incomes go into the selected budget even when one payday precedes the 25th', () => {
+  const budget = { incomes: [{ month: '2026-12', amount: 1000, updatedAt: 1 }], cycle: { ...defaultMonthCycle, holidays: ['2026-11-30'] }, incomeSources: [payday25, lastWeek] }
+  assert.ok(validMonthlyBudget(budget))
+  const details = getMonthlyIncomeDetails('2026-12', budget)
+  assert.equal(details.total, 1200.30)
+  assert.deepEqual(details.sources.map(({ date }) => date), ['2026-11-24', '2026-11-25'])
+  const summary = summarizeBudgetMonth([{ type: 'income', amount: 500.10, date: '2026-11-25' }], '2026-12', budget)
+  assert.equal(summary.recordedIncome, 500.10)
+  assert.equal(summary.income, 1200.30)
+  assert.equal(summary.period.start, '2026-11-25')
+  assert.equal(getMonthlyIncomeDetails('2026-11', budget).total, null)
+  assert.equal(getMonthlyIncomeDetails('2027-01', budget).total, 1200.30)
+})
+
+test('Recurring income edits and withdrawals apply from their effective month and keep prior totals', () => {
+  const original = { incomes: [], incomeSources: [payday25, lastWeek] }
+  const edits = { incomes: [], incomeSources: [
+    { ...payday25, month: '2027-01', amount: 550, updatedAt: 3 },
+    { ...lastWeek, month: '2027-01', amount: null, updatedAt: 4 },
+  ] }
+  const synced = mergeMonthlyBudgets(original, edits)
+  assert.equal(getMonthlyIncomeDetails('2026-12', synced).total, 1200.30)
+  assert.equal(getMonthlyIncomeDetails('2027-01', synced).total, 550)
+  assert.equal(getMonthlyIncomeDetails('2027-02', synced).total, 550)
 })

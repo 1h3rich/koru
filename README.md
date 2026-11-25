@@ -21,11 +21,11 @@ Koru pide una contraseña de acceso en cada nueva sesión. Conserva datos en el 
 
 ## Meses, gastos fijos y ahorro a futuro
 
-En «Meses» puedes ver ingresos, gastos registrados y diferencia. El corte configurable abre el mes siguiente el día 25 o el cuarto día hábil desde el final del mes. El corte hábil descuenta los fines de semana y los festivos que añadas. Un total de ingresos introducido a mano sustituye la suma de ingresos de Movimientos para ese mes.
+En «Meses» puedes ver ingresos, gastos registrados y diferencia. El corte configurable abre el mes siguiente el día 25 o el cuarto día hábil desde el final del mes. El corte hábil descuenta los fines de semana y los festivos que añadas. Puedes sumar varias fuentes recurrentes, cada una con su propia fecha de cobro. Se aplican desde el mes seleccionado y los cobros previstos de fin de mes se asignan al mes siguiente. Si no configuras fuentes, puedes seguir indicando el total manual o usar los movimientos registrados.
 
 En «Gastos fijos» puedes marcar cada cobro como pagado y consultar su historial. Un gasto del día 4 vuelve a estar pendiente el día 4 de su siguiente ciclo. Los avisos aparecen dentro de Koru durante los siete días previos. Los gastos sin fecha usan el mes natural y van sin aviso.
 
-«Ahorro a futuro» usa el ingreso manual del mes seleccionado y resta la suma de gastos fijos activos. Para un objetivo total, divide el objetivo entre ese margen y redondea hacia arriba a meses completos. La estimación parte de cero y supone que ahorras el margen íntegro cada mes. Los ingresos manuales, las marcas de pago y el objetivo se guardan en la copia cifrada que sincroniza Koru.
+«Ahorro a futuro» usa el total de ingresos recurrentes o el ingreso manual del mes seleccionado y resta la suma de gastos fijos activos. Para un objetivo total, divide el objetivo entre ese margen y redondea hacia arriba a meses completos. La estimación parte de cero y supone que ahorras el margen íntegro cada mes. Los ingresos planificados, las marcas de pago y el objetivo se guardan en la copia cifrada que sincroniza Koru.
 
 ## Comprobaciones
 

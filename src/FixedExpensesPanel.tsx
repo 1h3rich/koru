@@ -1,7 +1,8 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import DecimalInput from './DecimalInput'
 import { CheckIcon, EditIcon, PlusIcon, RepeatIcon, TrashIcon } from './Icons'
-import { defaultMonthCycle, fixedExpenseDueDate, getBudgetMonth, summarizeBudgetMonth, summarizeFixedPayments, validMonth } from './monthlyBudget'
+import MonthPicker from './MonthPicker'
+import { defaultMonthCycle, fixedExpenseDueDate, getBudgetMonth, summarizeBudgetMonth, summarizeFixedPayments } from './monthlyBudget'
 import type { FixedExpense, MonthlyBudget, Transaction } from './types'
 
 const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
@@ -112,10 +113,7 @@ export default function FixedExpensesPanel({ expenses, transactions, budget, tod
         <div className="fixed-payment-period">
           <div className="field">
             <label htmlFor="fixed-payment-month">Consultar por mes</label>
-            <input id="fixed-payment-month" type="month" min="1900-01" max="9998-12" value={selectedMonth ?? ''} onChange={(event) => {
-              const value = event.target.value
-              if (!value || validMonth(value)) setSelectedMonth(value || null)
-            }} />
+            <MonthPicker id="fixed-payment-month" value={selectedMonth ?? ''} onChange={(value) => setSelectedMonth(value || null)} allowEmpty />
           </div>
           {selectedMonth && <button className="secondary-button" type="button" onClick={() => setSelectedMonth(null)}>Ciclo actual</button>}
         </div>
