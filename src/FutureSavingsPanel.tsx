@@ -40,13 +40,13 @@ export default function FutureSavingsPanel({ transactions, fixedExpenses, monthl
         <SavingsGoalForm key={plan?.goalAmount ?? 'empty-goal'} plan={plan} income={income} expenses={fixedExpenses} onSave={onSave} />
         <details className="savings-method">
           <summary>Historial del presupuesto</summary>
-          <p>Ingresos recurrentes menos gastos registrados por periodo.</p>
+          <p>Nóminas cobradas menos gastos registrados por periodo.</p>
           <div className="savings-history">
             {history.length === 0 ? <p>Aún no hay ingresos recurrentes ni gastos.</p> : (
               <ul>
                 {history.map((entry) => (
                   <li key={entry.month}>
-                    <span><strong>{monthFormatter.format(new Date(`${entry.month}-01T12:00:00`))}</strong><small>{currency.format(entry.income)} recurrentes · {currency.format(entry.expenses)} gastados</small></span>
+                    <span><strong>{monthFormatter.format(new Date(`${entry.month}-01T12:00:00`))}</strong><small>{currency.format(entry.income)} cobrados · {currency.format(entry.expenses)} gastados</small></span>
                     <b className={entry.difference < 0 ? 'negative' : ''}>{currency.format(entry.difference)}</b>
                   </li>
                 ))}
@@ -82,7 +82,7 @@ function SavingsGoalForm({ plan, income, expenses, onSave }: Pick<Props, 'plan' 
   return (
     <form className="savings-goal-form" onSubmit={save}>
       <dl className="month-totals" aria-label="Margen mensual">
-        <div><dt>Ingresos recurrentes</dt><dd>{income === null ? '—' : currency.format(income)}</dd></div>
+        <div><dt>Ingresos previstos</dt><dd>{income === null ? '—' : currency.format(income)}</dd></div>
         <div><dt>Gastos fijos activos</dt><dd>{currency.format(fixedTotal)}</dd></div>
         <div className="month-difference"><dt>Dinero libre al mes</dt><dd className={free !== null && free < 0 ? 'negative' : ''}>{free === null ? '—' : currency.format(free)}</dd></div>
       </dl>

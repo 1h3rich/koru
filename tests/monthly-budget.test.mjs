@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { getAvailableBalance } from '../src/finance.ts'
 import {
-  defaultMonthCycle, fixedExpenseDueDate, getBudgetMonth, getFixedExpenseNotices, getMonthlyBudgetHistory, getMonthlyIncomeDetails,
-  getMonthPeriod, mergeMonthlyBudgets, summarizeBudgetMonth, summarizeFixedPayments, validMonthlyBudget,
+  defaultMonthCycle, entriesInBudgetPeriod, fixedExpenseDueDate, getBudgetMonth, getFixedExpenseNotices, getMonthlyBudgetHistory, getMonthlyIncomeDetails,
+  getMonthPeriod, mergeMonthlyBudgets, recordIncomeReceipt, summarizeBudgetMonth, summarizeFixedPayments, undoIncomeReceipt, validMonthlyBudget,
 } from '../src/monthlyBudget.ts'
 
 const gym = { id: 'gym', name: 'Gimnasio', amount: 25.99, active: true, dueDay: 4, createdAt: Date.UTC(2026, 9, 1) }
@@ -32,7 +32,7 @@ test('One-off income contributes to available balance and never to monthly incom
     { type: 'expense', amount: 45, date: '2026-12-12', balanceAdjustment: true },
   ]
   const budget = { incomes: [{ month: '2026-12', amount: 750.10, updatedAt: 1 }] }
-  const summary = summarizeBudgetMonth(transactions, '2026-12', budget)
+  const summary = summarizeBudgetMonth(transactions, '2026-12', budget, '2026-12-25')
   assert.equal(summary.income, 0)
   assert.equal(summary.expenses, 70)
   assert.equal(summary.difference, -70)
@@ -78,8 +78,8 @@ test('Both recurring incomes go into the selected budget even when one payday pr
   const details = getMonthlyIncomeDetails('2026-12', budget)
   assert.equal(details.planned, 1200.30)
   assert.deepEqual(details.sources.map(({ date }) => date), ['2026-11-24', '2026-11-25'])
-  const summary = summarizeBudgetMonth([{ type: 'income', amount: 500.10, date: '2026-11-25' }], '2026-12', budget)
-  assert.equal(summary.income, 1200.30)
+  const summary = summarizeBudgetMonth([{ type: 'income', amount: 500.10, date: '2026-11-25' }], '2026-12', budget, '2026-11-25')
+  assert.equal(summary.income, 0)
   assert.equal(summary.period.start, '2026-11-25')
   assert.equal(getMonthlyIncomeDetails('2026-11', budget).planned, null)
   assert.equal(getMonthlyIncomeDetails('2027-01', budget).planned, 1200.30)
@@ -101,6 +101,8 @@ test('Budget history uses the cutoff, recurring incomes and recorded expenses', 
   const budget = { incomes: [], incomeSources: [{ ...payday25, amount: 1000 }] }
   const transactions = [
     { type: 'income', amount: 500, date: '2026-11-25' },
+    { type: 'income', amount: 1000, date: '2026-11-24', incomeReceipt: { sourceId: payday25.id, month: '2026-12', kind: 'payroll' } },
+    { type: 'income', amount: 1000, date: '2026-12-25', incomeReceipt: { sourceId: payday25.id, month: '2027-01', kind: 'payroll' } },
     { type: 'expense', amount: 800, date: '2026-11-25' },
     { type: 'expense', amount: 1030, date: '2026-12-25' },
     { type: 'expense', amount: 500, date: '2026-12-26', balanceAdjustment: true },
@@ -110,4 +112,49 @@ test('Budget history uses the cutoff, recurring incomes and recorded expenses', 
     { month: '2027-01', income: 1000, expenses: 1030, difference: -30 },
     { month: '2026-12', income: 1000, expenses: 800, difference: 200 },
   ])
+})
+
+test('Available balance starts at zero on the 25th while earlier entries remain in their period', () => {
+  const previous = { type: 'income', amount: 700, date: '2026-11-24' }
+  const previousExpense = { type: 'expense', amount: 100, date: '2026-11-20' }
+  const future = { type: 'income', amount: 800, date: '2026-11-26' }
+  const entries = [previous, previousExpense, future]
+  const select = (month, today) => entriesInBudgetPeriod(entries, month, defaultMonthCycle, today, (item) => item.date)
+  assert.equal(getAvailableBalance(select('2026-11', '2026-11-24'), []), 600)
+  assert.equal(getAvailableBalance(select('2026-12', '2026-11-25'), []), 0)
+  assert.deepEqual(select('2026-11', '2026-11-25'), [previous, previousExpense])
+  assert.deepEqual(select('2026-12', '2026-11-26'), [future])
+})
+
+const extra = { ...payday25, id: 'extra', name: 'Ingreso extra', payday: 'extra', amount: 238.09 }
+const payroll = { ...payday25, name: 'Nómina', amount: 238.09 }
+const receiptBudget = { incomes: [], incomeSources: [payroll, extra] }
+const month = '2026-12'
+const today = '2026-11-25'
+
+test('Two planned amounts of 238.09 are pending until each receipt is confirmed', () => {
+  const expense = { id: 'expense', type: 'expense', amount: 10, date: today, createdAt: 1 }
+  assert.equal(getMonthlyIncomeDetails(month, receiptBudget).planned, 238.09)
+  assert.equal(getMonthlyIncomeDetails('2027-01', receiptBudget).sources.length, 1)
+  assert.equal(summarizeBudgetMonth([expense], month, receiptBudget, today).difference, -10)
+  assert.equal(recordIncomeReceipt([], receiptBudget, { sourceId: payroll.id, month, amount: 238.09, date: '2026-11-26' }, today, 10), null)
+  const received = recordIncomeReceipt([expense], receiptBudget, { sourceId: payroll.id, month, amount: 238.09, date: today }, today, 11)
+  const both = recordIncomeReceipt(received, receiptBudget, { sourceId: extra.id, month, amount: 238.09, date: today }, today, 12)
+  assert.equal(getAvailableBalance(both, []), 466.18)
+  assert.equal(summarizeBudgetMonth(both, month, receiptBudget, today).income, 238.09)
+  assert.equal(summarizeBudgetMonth(both, month, receiptBudget, today).difference, 228.09)
+  assert.equal(recordIncomeReceipt(both, receiptBudget, { sourceId: extra.id, month, amount: 238.09, date: today }, today, 13), null)
+  assert.equal(getAvailableBalance(undoIncomeReceipt(both, both[0].id, 14), []), 228.09)
+})
+
+test('Linking two movements with the same amount preserves the balance and distinguishes salary from extra', () => {
+  const salaryMovement = { id: 'salary-bank', type: 'income', amount: 238.09, date: today, createdAt: 1 }
+  const extraMovement = { ...salaryMovement, id: 'extra-bank' }
+  const existing = [salaryMovement, extraMovement]
+  const linked = recordIncomeReceipt(existing, receiptBudget, { sourceId: payroll.id, month, transactionId: salaryMovement.id }, today, 20)
+  assert.equal(recordIncomeReceipt(linked, receiptBudget, { sourceId: extra.id, month, transactionId: salaryMovement.id }, today, 21), null)
+  const both = recordIncomeReceipt(linked, receiptBudget, { sourceId: extra.id, month, transactionId: extraMovement.id }, today, 22)
+  assert.equal(getAvailableBalance(both, []), getAvailableBalance(existing, []))
+  assert.equal(summarizeBudgetMonth(both, month, receiptBudget, today).income, 238.09)
+  assert.equal(getAvailableBalance(undoIncomeReceipt(both, salaryMovement.id, 23), []), 476.18)
 })

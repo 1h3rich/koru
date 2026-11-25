@@ -1093,11 +1093,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .monthly-sources-list li strong { display: block; overflow-wrap: anywhere; font-size: .82rem; }
 .monthly-sources-list time, .monthly-income-note, .monthly-source-confirm { color: var(--muted); font-size: .76rem; line-height: 1.45; }
 .monthly-sources-list time { display: block; margin-top: 3px; }
+.monthly-sources-list li > span > small { display: block; color: var(--muted); font-size: .73rem; }
 .monthly-sources-list b { font-size: .82rem; }
 .monthly-sources-list button { color: var(--blue); }
 .monthly-sources-list .remove-monthly-income { color: var(--red); }
 .monthly-sources-list svg { width: 16px; }
 .monthly-source-confirm { grid-column: 1 / -1; margin: 0; }
+.income-receipt-state { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.income-receipt-state small { color: var(--muted); font-size: .74rem; }
+.income-receipt-state small.received { color: var(--green); font-weight: 800; }
+.income-receipt-state > button { padding: 0 10px; min-height: 36px; border-color: var(--line); color: var(--blue); font-size: .74rem; }
+.available-period { display: block; margin: 4px 0 8px; color: var(--muted); font-size: .69rem; }
+.movement-period { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.movement-period > button { padding: 0 8px; min-height: 50px; border-color: var(--line); color: var(--blue); font-size: .8rem; }
 .monthly-source-form { padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
 .monthly-income-note { margin: 0; }
 .month-income-actions button, .month-holidays > button, .fixed-payment-period > button { padding: 0 12px; }

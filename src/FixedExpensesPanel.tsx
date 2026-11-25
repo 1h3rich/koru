@@ -2,8 +2,8 @@ import { useMemo, useState, type FormEvent } from 'react'
 import DecimalInput from './DecimalInput'
 import { CheckIcon, EditIcon, PlusIcon, RepeatIcon, TrashIcon } from './Icons'
 import MonthPicker from './MonthPicker'
-import { defaultMonthCycle, fixedExpenseDueDate, getBudgetMonth, summarizeBudgetMonth, summarizeFixedPayments } from './monthlyBudget'
-import type { FixedExpense, MonthlyBudget, Transaction } from './types'
+import { defaultMonthCycle, fixedExpenseDueDate, getBudgetMonth, getMonthlyIncomeDetails, summarizeFixedPayments } from './monthlyBudget'
+import type { FixedExpense, MonthlyBudget } from './types'
 
 const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
 const dateLabel = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', timeZone: 'UTC' })
@@ -11,7 +11,6 @@ const categories = ['Vivienda', 'Alimentación', 'Transporte', 'Salud', 'Suscrip
 
 interface Props {
   expenses: FixedExpense[]
-  transactions: Transaction[]
   budget: MonthlyBudget
   today: string
   onSaveMonthlyBudget: (changes: MonthlyBudget, message: string) => boolean
@@ -28,11 +27,11 @@ interface Draft {
 
 const emptyDraft = (): Draft => ({ name: '', amount: 0, category: 'Vivienda', dueDay: '' })
 
-export default function FixedExpensesPanel({ expenses, transactions, budget, today, onSaveMonthlyBudget, onSave, onDelete }: Props) {
+export default function FixedExpensesPanel({ expenses, budget, today, onSaveMonthlyBudget, onSave, onDelete }: Props) {
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
   const summary = useMemo(() => summarizeFixedPayments(expenses, selectedMonth, today, budget), [expenses, selectedMonth, today, budget])
   const incomeMonth = selectedMonth ?? getBudgetMonth(today, budget.cycle ?? defaultMonthCycle)
-  const income = useMemo(() => summarizeBudgetMonth(transactions, incomeMonth, budget).income, [transactions, incomeMonth, budget])
+  const income = useMemo(() => getMonthlyIncomeDetails(incomeMonth, budget).planned ?? 0, [incomeMonth, budget])
   const percentage = income > 0 ? Math.round(summary.total / income * 100) : 0
   const ordered = useMemo(() => [...expenses].sort((a, b) => Number(b.active) - Number(a.active) || (a.dueDay ?? 32) - (b.dueDay ?? 32) || a.name.localeCompare(b.name, 'es')), [expenses])
   const [draft, setDraft] = useState<Draft>(emptyDraft)
@@ -123,7 +122,7 @@ export default function FixedExpensesPanel({ expenses, transactions, budget, tod
           <div className="month-difference"><dt>Total</dt><dd>{currency.format(summary.total)}</dd></div>
         </dl>
         <div className="fixed-expenses-meter">
-          <div><span>Ingresos comprometidos</span><b>{income > 0 ? `${percentage}%` : '—'}</b></div>
+          <div><span>Ingresos previstos comprometidos</span><b>{income > 0 ? `${percentage}%` : '—'}</b></div>
           <div className="fixed-expenses-track"><span style={{ width: `${Math.min(100, percentage)}%` }} /></div>
           {income > 0 && <p>Libre tras los fijos: {currency.format(income - summary.total)}.</p>}
         </div>

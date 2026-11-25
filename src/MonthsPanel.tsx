@@ -3,7 +3,7 @@ import { CalendarIcon, TrashIcon } from './Icons'
 import MonthPicker from './MonthPicker'
 import MonthlyIncomeSources from './MonthlyIncomeSources'
 import { defaultMonthCycle, getBudgetMonth, moveMonth, summarizeBudgetMonth, validMonthCutoff } from './monthlyBudget'
-import type { MonthCycle, MonthlyBudget, Transaction } from './types'
+import type { ConfirmIncomeReceipt, MonthCycle, MonthlyBudget, Transaction } from './types'
 
 const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
 const dateLabel = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
@@ -14,13 +14,15 @@ interface Props {
   today: string
   transactions: Transaction[]
   onSave: (changes: MonthlyBudget, message: string) => boolean
+  onConfirm: (request: ConfirmIncomeReceipt) => boolean
+  onUndo: (id: string) => boolean
 }
 
-export default function MonthsPanel({ budget, today, transactions, onSave }: Props) {
+export default function MonthsPanel({ budget, today, transactions, onSave, onConfirm, onUndo }: Props) {
   const [selected, setSelected] = useState<string | null>(null)
   const cycle = budget.cycle ?? defaultMonthCycle
   const month = selected ?? getBudgetMonth(today, cycle)
-  const summary = useMemo(() => summarizeBudgetMonth(transactions, month, budget), [transactions, month, budget])
+  const summary = useMemo(() => summarizeBudgetMonth(transactions, month, budget, today), [transactions, month, budget, today])
   const { sources } = summary.incomeDetails
 
   return (
@@ -41,12 +43,12 @@ export default function MonthsPanel({ budget, today, transactions, onSave }: Pro
         </div>
         <p className="month-period"><CalendarIcon /> {displayDate(summary.period.start)} – {displayDate(summary.period.end)}</p>
         <dl className="month-totals">
-          <div><dt>Ingresos recurrentes</dt><dd>{currency.format(summary.income)}</dd></div>
+          <div><dt>Nóminas y recurrentes cobrados</dt><dd>{currency.format(summary.income)}</dd></div>
           <div><dt>Gastos registrados</dt><dd>{currency.format(summary.expenses)}</dd></div>
           <div className="month-difference"><dt>Diferencia</dt><dd className={summary.difference < 0 ? 'negative' : ''}>{currency.format(summary.difference)}</dd></div>
         </dl>
-        <MonthlyIncomeSources key={month} month={month} sources={sources} onSave={onSave} />
-        {sources.length === 0 && <p className="monthly-income-note">Añade tus nóminas o cobros habituales. Los ingresos puntuales de «Movimientos» cuentan para el saldo disponible.</p>}
+        <MonthlyIncomeSources key={month} month={month} today={today} sources={sources} transactions={transactions} receipts={summary.receipts} onSave={onSave} onConfirm={onConfirm} onUndo={onUndo} />
+        {sources.length === 0 && <p className="monthly-income-note">Añade una nómina o un ingreso extra. Cuando lo cobres, podrás registrarlo o vincularlo con un movimiento existente.</p>}
         <CycleSettings cycle={cycle} showHolidays={sources.some((source) => source.payday === 'fourth-business-day')} onSave={onSave} />
       </div>
     </details>

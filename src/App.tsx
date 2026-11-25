@@ -3,8 +3,9 @@ import AuthScreen from './AuthScreen'
 import type { BackupData } from './BackupPanel'
 import Dashboard from './Dashboard'
 import { calculateBalanceAdjustment, getAvailableBalance, normalizeCryptoAsset } from './finance'
+import { defaultMonthCycle, entriesInBudgetPeriod, getBudgetMonth, recordIncomeReceipt, undoIncomeReceipt } from './monthlyBudget'
 import { closeSession, isSessionOpen, loadFixedExpenses, loadFutureSavingsPlan, loadLoans, loadMonthlyBudget, loadReserveMovements, loadTransactionDraftRecord, loadTransactions, saveTransactionDraftRecord, syncFromCloud, syncToCloud, type CloudSnapshot } from './storage'
-import type { AppFeedback, FixedExpense, FutureSavingsPlan, Loan, MonthlyBudget, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionFormDraftRecord } from './types'
+import type { AppFeedback, ConfirmIncomeReceipt, FixedExpense, FutureSavingsPlan, Loan, MonthlyBudget, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionFormDraftRecord } from './types'
 
 const THEME_KEY = 'koru.theme.v1'
 
@@ -165,7 +166,18 @@ export default function App() {
   }
 
   function updateTransaction(transaction: Transaction) {
+    if (transaction.incomeReceipt && (transaction.type !== 'income' || transaction.date > localDate())) return false
     return updateTransactions(transactions.map((current) => current.id === transaction.id ? transaction : current), 'Movimiento actualizado y sincronizado')
+  }
+
+  function confirmIncomeReceipt(request: ConfirmIncomeReceipt) {
+    const next = recordIncomeReceipt(transactions, monthlyBudget, request, localDate(), Date.now())
+    return next !== null && updateTransactions(next, 'Cobro confirmado y sincronizado')
+  }
+
+  function cancelIncomeReceipt(id: string) {
+    const next = undoIncomeReceipt(transactions, id, Date.now())
+    return next !== null && updateTransactions(next, 'Confirmación del cobro deshecha')
   }
 
   function deleteTransaction(id: string) {
@@ -173,7 +185,12 @@ export default function App() {
   }
 
   function adjustCurrentBalance(targetBalance: number) {
-    const adjustment = calculateBalanceAdjustment(getAvailableBalance(transactions, loans), targetBalance)
+    const date = localDate()
+    const cycle = monthlyBudget.cycle ?? defaultMonthCycle
+    const month = getBudgetMonth(date, cycle)
+    const currentTransactions = entriesInBudgetPeriod(transactions, month, cycle, date, (item) => item.date)
+    const currentLoans = entriesInBudgetPeriod(loans, month, cycle, date, (item) => item.lentDate)
+    const adjustment = calculateBalanceAdjustment(getAvailableBalance(currentTransactions, currentLoans), targetBalance)
     if (!adjustment) {
       setFeedback({ id: ++feedbackSequence.current, message: 'El saldo ya coincide. No hace falta cambiar nada.', tone: 'success' })
       return true
@@ -184,7 +201,7 @@ export default function App() {
       type: adjustment.type,
       amount: adjustment.amount,
       category: 'Ajuste de saldo',
-      date: localDate(),
+      date,
       description: 'Saldo anterior',
       createdAt: now,
       updatedAt: now,
@@ -331,6 +348,8 @@ export default function App() {
     <Dashboard
       transactions={transactions}
       onAdd={addTransaction}
+      onConfirmIncomeReceipt={confirmIncomeReceipt}
+      onCancelIncomeReceipt={cancelIncomeReceipt}
       transactionDraft={transactionDraft?.cleared ? null : transactionDraft?.data ?? null}
       onTransactionDraftChange={saveTransactionDraft}
       onDelete={deleteTransaction}

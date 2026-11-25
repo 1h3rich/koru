@@ -1,4 +1,4 @@
-import type { FixedExpense, FixedExpensePayment, MonthCutoff, MonthCycle, MonthlyBudget, MonthlyIncome, MonthlyIncomeSource, Transaction } from './types'
+import type { ConfirmIncomeReceipt, FixedExpense, FixedExpensePayment, IncomePayday, MonthCutoff, MonthCycle, MonthlyBudget, MonthlyIncome, MonthlyIncomeSource, ScheduledIncome, Transaction } from './types'
 
 const monthFormat = /^\d{4}-(0[1-9]|1[0-2])$/
 const dateFormat = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
@@ -29,6 +29,10 @@ export function validMonthCutoff(value: unknown): value is MonthCutoff {
   return value === 'day-25' || value === 'fourth-business-day'
 }
 
+export function validIncomePayday(value: unknown): value is IncomePayday {
+  return validMonthCutoff(value) || value === 'salary-once' || value === 'extra'
+}
+
 export function validMonthCycle(value: unknown): value is MonthCycle {
   if (!value || typeof value !== 'object') return false
   const { cutoff, holidays, updatedAt } = value as Partial<MonthCycle>
@@ -49,7 +53,7 @@ function validMonthlyIncomeSource(value: unknown): value is MonthlyIncomeSource 
   const source = value as Partial<MonthlyIncomeSource>
   return typeof source.id === 'string' && source.id.length > 0
     && typeof source.name === 'string' && source.name.trim().length > 0 && source.name.length <= 80
-    && validMonthCutoff(source.payday) && validMonthlyIncome(source)
+    && validIncomePayday(source.payday) && validMonthlyIncome(source)
 }
 
 function validFixedExpensePayment(value: unknown): value is FixedExpensePayment {
@@ -120,41 +124,111 @@ export function getMonthPeriod(month: string, cycle: MonthCycle) {
   return { start, end: dayKey(end), endExclusive }
 }
 
+export function entriesInBudgetPeriod<T>(entries: T[], month: string, cycle: MonthCycle, today: string, dateOf: (entry: T) => string) {
+  const { start, endExclusive } = getMonthPeriod(month, cycle)
+  return entries.filter((entry) => {
+    const date = dateOf(entry)
+    return date >= start && date < endExclusive && date <= today
+  })
+}
+
 export function getMonthlyIncomeDetails(month: string, budget: MonthlyBudget) {
   const latest = new Map<string, MonthlyIncomeSource>()
   for (const source of budget.incomeSources ?? []) {
     if (source.month > month) continue
+    if (!validMonthCutoff(source.payday) && source.month !== month) continue
     const previous = latest.get(source.id)
     if (!previous || source.month >= previous.month) latest.set(source.id, source)
   }
   const payMonth = moveMonth(month, -1)
   const cycle = budget.cycle ?? defaultMonthCycle
-  const sources = [...latest.values()].flatMap((source) => source.amount === null ? [] : [{
+  const sources: ScheduledIncome[] = [...latest.values()].flatMap((source) => source.amount === null ? [] : [{
     ...source,
     amount: source.amount,
-    date: cutoffDate(payMonth, { ...cycle, cutoff: source.payday }),
-  }]).sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name, 'es'))
-  const planned = sources.length > 0 ? sources.reduce((sum, source) => sum + Math.round(source.amount * 100), 0) / 100 : null
+    date: validMonthCutoff(source.payday) ? cutoffDate(payMonth, { ...cycle, cutoff: source.payday }) : null,
+  }]).sort((a, b) => (a.date ?? 'z').localeCompare(b.date ?? 'z') || a.name.localeCompare(b.name, 'es'))
+  const plannedSources = sources.filter((source) => source.payday !== 'extra')
+  const planned = plannedSources.length ? plannedSources.reduce((sum, source) => sum + Math.round(source.amount * 100), 0) / 100 : null
   return { sources, planned }
+}
+
+function validIncomeMovement(transaction: Transaction) {
+  return transaction.type === 'income' && !transaction.balanceAdjustment && Number.isFinite(transaction.amount) && transaction.amount > 0
+}
+
+function isIncomeReceipt(transaction: Transaction, today: string) {
+  const receipt = transaction.incomeReceipt
+  return validIncomeMovement(transaction) && validDate(transaction.date) && transaction.date <= today
+    && receipt && typeof receipt.sourceId === 'string' && validMonth(receipt.month)
+    && (receipt.kind === 'payroll' || receipt.kind === 'extra')
+}
+
+export function incomeReceiptsBySource(transactions: Transaction[], month: string, today: string) {
+  const receipts = new Map<string, Transaction>()
+  for (const transaction of transactions) {
+    if (!isIncomeReceipt(transaction, today) || transaction.incomeReceipt?.month !== month) continue
+    const sourceId = transaction.incomeReceipt.sourceId
+    const previous = receipts.get(sourceId)
+    if (!previous || (transaction.updatedAt ?? transaction.createdAt) > (previous.updatedAt ?? previous.createdAt)) receipts.set(sourceId, transaction)
+  }
+  return receipts
+}
+
+function receiptTransactionId(sourceId: string, month: string) {
+  return `income-receipt:${month}:${sourceId}`
+}
+
+export function recordIncomeReceipt(transactions: Transaction[], budget: MonthlyBudget, request: ConfirmIncomeReceipt, today: string, now: number): Transaction[] | null {
+  if (!validMonth(request.month)) return null
+  const source = getMonthlyIncomeDetails(request.month, budget).sources.find((entry) => entry.id === request.sourceId)
+  if (!source || incomeReceiptsBySource(transactions, request.month, today).has(source.id)) return null
+  const incomeReceipt: NonNullable<Transaction['incomeReceipt']> = { sourceId: source.id, month: request.month, kind: source.payday === 'extra' ? 'extra' : 'payroll' }
+
+  if ('transactionId' in request) {
+    const existing = transactions.find((item) => item.id === request.transactionId)
+    if (!existing || !validIncomeMovement(existing) || existing.incomeReceipt || !validDate(existing.date) || existing.date > today) return null
+    return transactions.map((item) => item.id === existing.id
+      ? { ...item, incomeReceipt, updatedAt: Math.max(now, (item.updatedAt ?? item.createdAt) + 1) }
+      : item)
+  }
+
+  const { amount, date } = request
+  const id = receiptTransactionId(source.id, request.month)
+  if (!validDate(date) || date > today || !Number.isFinite(amount) || amount < 0.01 || amount > MAX_MONTHLY_INCOME || transactions.some((item) => item.id === id)) return null
+  return [{
+    id, type: 'income', amount: Math.round(amount * 100) / 100, date, incomeReceipt,
+    category: incomeReceipt.kind === 'payroll' ? 'Nómina' : 'Otros ingresos',
+    description: source.name, createdAt: now, updatedAt: now,
+  }, ...transactions]
+}
+
+export function undoIncomeReceipt(transactions: Transaction[], id: string, now: number): Transaction[] | null {
+  const transaction = transactions.find((item) => item.id === id)
+  if (!transaction?.incomeReceipt) return null
+  const { sourceId, month } = transaction.incomeReceipt
+  if (id === receiptTransactionId(sourceId, month)) return transactions.filter((item) => item.id !== id)
+  return transactions.map((item) => item.id === id ? { ...item, incomeReceipt: undefined, updatedAt: Math.max(now, (item.updatedAt ?? item.createdAt) + 1) } : item)
 }
 
 function isBudgetExpense(transaction: Transaction) {
   return transaction.type === 'expense' && !transaction.balanceAdjustment && Number.isFinite(transaction.amount) && transaction.amount > 0
 }
 
-export function summarizeBudgetMonth(transactions: Transaction[], month: string, budget: MonthlyBudget) {
+export function summarizeBudgetMonth(transactions: Transaction[], month: string, budget: MonthlyBudget, today: string) {
   const period = getMonthPeriod(month, budget.cycle ?? defaultMonthCycle)
   let expenseCents = 0
   for (const transaction of transactions) {
-    if (isBudgetExpense(transaction) && transaction.date >= period.start && transaction.date < period.endExclusive) {
+    if (isBudgetExpense(transaction) && transaction.date >= period.start && transaction.date < period.endExclusive && transaction.date <= today) {
       expenseCents += Math.round(transaction.amount * 100)
     }
   }
   const incomeDetails = getMonthlyIncomeDetails(month, budget)
-  const incomeCents = Math.round((incomeDetails.planned ?? 0) * 100)
+  const receipts = incomeReceiptsBySource(transactions, month, today)
+  const incomeCents = [...receipts.values()].reduce((sum, transaction) => transaction.incomeReceipt?.kind === 'payroll' ? sum + Math.round(transaction.amount * 100) : sum, 0)
   return {
     period,
     incomeDetails,
+    receipts,
     income: incomeCents / 100,
     expenses: expenseCents / 100,
     difference: (incomeCents - expenseCents) / 100,
@@ -165,21 +239,27 @@ export function getMonthlyBudgetHistory(transactions: Transaction[], budget: Mon
   const cycle = budget.cycle ?? defaultMonthCycle
   const currentMonth = getBudgetMonth(today, cycle)
   const expensesByMonth = new Map<string, number>()
+  const receiptsByMonth = new Map<string, Transaction[]>()
+  const months = new Set<string>()
   for (const transaction of transactions) {
-    if (!isBudgetExpense(transaction) || !validDate(transaction.date) || !validMonth(transaction.date.slice(0, 7))) continue
+    if (isIncomeReceipt(transaction, today) && transaction.incomeReceipt) {
+      const { month, kind } = transaction.incomeReceipt
+      const receipts = receiptsByMonth.get(month) ?? []
+      receipts.push(transaction)
+      receiptsByMonth.set(month, receipts)
+      if (kind === 'payroll') months.add(month)
+    }
+    if (!isBudgetExpense(transaction) || !validDate(transaction.date) || !validMonth(transaction.date.slice(0, 7)) || transaction.date > today) continue
     const month = getBudgetMonth(transaction.date, cycle)
     if (month > currentMonth) continue
+    months.add(month)
     expensesByMonth.set(month, (expensesByMonth.get(month) ?? 0) + Math.round(transaction.amount * 100))
   }
-  const months = new Set(expensesByMonth.keys())
-  const firstSourceMonth = budget.incomeSources?.reduce((first, source) => source.month < first ? source.month : first, currentMonth) ?? currentMonth
-  for (let month = firstSourceMonth; month <= currentMonth; month = moveMonth(month, 1)) months.add(month)
-  return [...months].sort((a, b) => b.localeCompare(a)).flatMap((month) => {
-    const { planned } = getMonthlyIncomeDetails(month, budget)
+  return [...months].sort((a, b) => b.localeCompare(a)).map((month) => {
+    const receipts = incomeReceiptsBySource(receiptsByMonth.get(month) ?? [], month, today)
     const expenseCents = expensesByMonth.get(month) ?? 0
-    if (planned === null && expenseCents === 0) return []
-    const incomeCents = Math.round((planned ?? 0) * 100)
-    return [{ month, income: incomeCents / 100, expenses: expenseCents / 100, difference: (incomeCents - expenseCents) / 100 }]
+    const incomeCents = [...receipts.values()].reduce((sum, transaction) => transaction.incomeReceipt?.kind === 'payroll' ? sum + Math.round(transaction.amount * 100) : sum, 0)
+    return { month, income: incomeCents / 100, expenses: expenseCents / 100, difference: (incomeCents - expenseCents) / 100 }
   })
 }
 

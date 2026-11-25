@@ -1,4 +1,4 @@
-const CACHE_NAME = 'koru-v16'
+const CACHE_NAME = 'koru-v17'
 const CORE_ASSETS = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg', '/apple-touch-icon.png']
 
 self.addEventListener('install', (event) => {

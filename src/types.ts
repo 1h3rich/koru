@@ -45,6 +45,7 @@ export interface Transaction {
   createdAt: number
   updatedAt?: number
   balanceAdjustment?: boolean
+  incomeReceipt?: { sourceId: string, month: string, kind: 'payroll' | 'extra' }
   reserveMovementId?: string
   receipt?: ReceiptDetails
   photos?: string[]
@@ -80,6 +81,7 @@ export interface FutureSavingsPlan {
 }
 
 export type MonthCutoff = 'day-25' | 'fourth-business-day'
+export type IncomePayday = MonthCutoff | 'salary-once' | 'extra'
 
 export interface MonthlyIncome {
   month: string
@@ -97,10 +99,19 @@ export interface MonthlyIncomeSource {
   id: string
   month: string
   name: string
-  payday: MonthCutoff
+  payday: IncomePayday
   amount: number | null
   updatedAt: number
 }
+
+export interface ScheduledIncome extends MonthlyIncomeSource {
+  amount: number
+  date: string | null
+}
+
+export type ConfirmIncomeReceipt =
+  | { sourceId: string, month: string, transactionId: string }
+  | { sourceId: string, month: string, amount: number, date: string }
 
 export interface FixedExpensePayment {
   expenseId: string

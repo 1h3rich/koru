@@ -9,11 +9,12 @@ import TransactionForm from './TransactionForm'
 import FutureSavingsPanel from './FutureSavingsPanel'
 import FixedExpensesPanel from './FixedExpensesPanel'
 import MonthsPanel from './MonthsPanel'
+import MonthPicker from './MonthPicker'
 import CsvImportPanel from './CsvImportPanel'
 import { getAvailableBalance, getLoanOutstanding, getReserveTotals } from './finance'
 import { getPurchaseBatchSources } from './purchaseBatch'
-import { getFixedExpenseNotices } from './monthlyBudget'
-import type { AppFeedback, FixedExpense, FutureSavingsPlan, Loan, MonthlyBudget, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionType } from './types'
+import { defaultMonthCycle, entriesInBudgetPeriod, getBudgetMonth, getFixedExpenseNotices, getMonthPeriod } from './monthlyBudget'
+import type { AppFeedback, ConfirmIncomeReceipt, FixedExpense, FutureSavingsPlan, Loan, MonthlyBudget, ReserveMovement, SyncStatus, ThemePreference, Transaction, TransactionFormDraftData, TransactionType } from './types'
 
 type Filter = 'all' | TransactionType
 
@@ -23,6 +24,8 @@ const dateFormatter = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 
 interface DashboardProps {
   transactions: Transaction[]
   onAdd: (transaction: Transaction) => boolean | void
+  onConfirmIncomeReceipt: (request: ConfirmIncomeReceipt) => boolean
+  onCancelIncomeReceipt: (id: string) => boolean
   transactionDraft: TransactionFormDraftData | null
   onTransactionDraftChange: (draft: TransactionFormDraftData | null) => void
   onImportCsv: (transactions: Transaction[]) => boolean | void
@@ -52,24 +55,33 @@ interface DashboardProps {
   onLogout: () => void
 }
 
-export default function Dashboard({ transactions, onAdd, transactionDraft, onTransactionDraftChange, onImportCsv, onDelete, onUpdate, reserveMovements, syncStatus, feedback, onAddReserveMovement, onDeleteReserveMovement, onUpdateReserveMovement, loans, fixedExpenses, monthlyBudget, onSaveMonthlyBudget, today, futureSavings, onSaveFutureSavings, onSaveLoan, onDeleteLoan, onSaveFixedExpense, onDeleteFixedExpense, onImportBackup, onAdjustBalance, theme, onThemeChange, onLogout }: DashboardProps) {
+export default function Dashboard({ transactions, onAdd, onConfirmIncomeReceipt, onCancelIncomeReceipt, transactionDraft, onTransactionDraftChange, onImportCsv, onDelete, onUpdate, reserveMovements, syncStatus, feedback, onAddReserveMovement, onDeleteReserveMovement, onUpdateReserveMovement, loans, fixedExpenses, monthlyBudget, onSaveMonthlyBudget, today, futureSavings, onSaveFutureSavings, onSaveLoan, onDeleteLoan, onSaveFixedExpense, onDeleteFixedExpense, onImportBackup, onAdjustBalance, theme, onThemeChange, onLogout }: DashboardProps) {
   const [filter, setFilter] = useState<Filter>('all')
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null)
+  const [historyMonth, setHistoryMonth] = useState<string | null>(null)
+  const cycle = monthlyBudget.cycle ?? defaultMonthCycle
+  const currentMonth = getBudgetMonth(today, cycle)
+  const currentPeriod = getMonthPeriod(currentMonth, cycle)
+  const currentTransactions = useMemo(() => entriesInBudgetPeriod(transactions, currentMonth, cycle, today, (item) => item.date), [transactions, currentMonth, cycle, today])
+  const selectedTransactions = useMemo(() => historyMonth && historyMonth !== currentMonth
+    ? entriesInBudgetPeriod(transactions, historyMonth, cycle, today, (item) => item.date)
+    : currentTransactions, [historyMonth, currentMonth, transactions, cycle, today, currentTransactions])
 
   const totals = useMemo(() => {
-    const income = transactions.filter((item) => item.type === 'income').reduce((sum, item) => sum + item.amount, 0)
-    const expense = transactions.filter((item) => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0)
+    const income = currentTransactions.filter((item) => item.type === 'income').reduce((sum, item) => sum + item.amount, 0)
+    const expense = currentTransactions.filter((item) => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0)
     const loaned = loans.reduce((sum, loan) => sum + getLoanOutstanding(loan), 0)
-    return { income, expense, loaned, balance: getAvailableBalance(transactions, loans) }
-  }, [transactions, loans])
+    const currentLoans = entriesInBudgetPeriod(loans, currentMonth, cycle, today, (item) => item.lentDate)
+    return { income, expense, loaned, balance: getAvailableBalance(currentTransactions, currentLoans) }
+  }, [currentTransactions, loans, currentMonth, cycle, today])
 
   const visibleTransactions = useMemo(
-    () => transactions
+    () => selectedTransactions
       .filter((item) => filter === 'all' || item.type === filter)
       .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt),
-    [filter, transactions],
+    [filter, selectedTransactions],
   )
 
   const reserveTotals = useMemo(() => getReserveTotals(reserveMovements), [reserveMovements])
@@ -127,9 +139,9 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
             <h1 id="dashboard-title">Tus cuentas,<br /><em>claras.</em></h1>
           </div>
           <div className="balance-block">
-            <span>Balance actual</span>
+            <span>Disponible del ciclo</span>
             <strong className={totals.balance < 0 ? 'negative' : ''}>{currency.format(totals.balance)}</strong>
-            <p>{transactions.length === 0 ? 'Añade tu primer movimiento' : `${transactions.length} ${transactions.length === 1 ? 'movimiento registrado' : 'movimientos registrados'}`}</p>
+            <p>{currentTransactions.length === 0 ? 'Sin movimientos en este ciclo' : `${currentTransactions.length} ${currentTransactions.length === 1 ? 'movimiento registrado' : 'movimientos registrados'}`}</p>
             <a className="quick-add-button" href="#add-title">
               <PlusIcon /> Apuntar movimiento
             </a>
@@ -145,9 +157,10 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
           <article className="overview-card available-card">
             <div className="overview-card-heading">
               <div className="overview-icon"><WalletIcon /></div>
-              <span>Disponible</span>
+              <span>Disponible del ciclo</span>
             </div>
             <strong className={totals.balance < 0 ? 'negative' : ''}>{currency.format(totals.balance)}</strong>
+            <small className="available-period">Desde el {dateFormatter.format(new Date(`${currentPeriod.start}T12:00:00`))}</small>
             <div className="overview-breakdown">
               <span><i className="dot income-dot" /> Ingresos {currency.format(totals.income)}</span>
               <span><i className="dot expense-dot" /> Gastos {currency.format(totals.expense)}</span>
@@ -193,7 +206,7 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
                 </ul>
               </details>
             )}
-            <MonthsPanel budget={monthlyBudget} today={today} transactions={transactions} onSave={onSaveMonthlyBudget} />
+            <MonthsPanel budget={monthlyBudget} today={today} transactions={transactions} onSave={onSaveMonthlyBudget} onConfirm={onConfirmIncomeReceipt} onUndo={onCancelIncomeReceipt} />
             <TransactionForm onAdd={onAdd} savedDraft={transactionDraft} onDraftChange={onTransactionDraftChange} />
             <CsvImportPanel onImport={onImportCsv} />
             <ReservesPanel
@@ -203,7 +216,7 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
               onUpdate={onUpdateReserveMovement}
             />
             <LoansPanel loans={loans} onSave={onSaveLoan} onDelete={onDeleteLoan} />
-            <FixedExpensesPanel expenses={fixedExpenses} transactions={transactions} budget={monthlyBudget} today={today} onSaveMonthlyBudget={onSaveMonthlyBudget} onSave={onSaveFixedExpense} onDelete={onDeleteFixedExpense} />
+            <FixedExpensesPanel expenses={fixedExpenses} budget={monthlyBudget} today={today} onSaveMonthlyBudget={onSaveMonthlyBudget} onSave={onSaveFixedExpense} onDelete={onDeleteFixedExpense} />
             <FutureSavingsPanel transactions={transactions} fixedExpenses={fixedExpenses} monthlyBudget={monthlyBudget} today={today} plan={futureSavings} onSave={onSaveFutureSavings} />
           </div>
 
@@ -213,10 +226,17 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
                 <p className="eyebrow eyebrow-blue">Tu actividad</p>
                 <h2 id="history-title">Movimientos</h2>
               </div>
-              <span className="history-count">{transactions.length}</span>
+              <span className="history-count">{selectedTransactions.length}</span>
             </summary>
 
             <div className="history-content">
+              <div className="movement-period">
+                <div className="field">
+                  <label htmlFor="movement-month">Historial por periodo</label>
+                  <MonthPicker id="movement-month" value={historyMonth ?? currentMonth} onChange={(month) => setHistoryMonth(month === currentMonth ? null : month)} />
+                </div>
+                {historyMonth && historyMonth !== currentMonth && <button type="button" className="secondary-button" onClick={() => setHistoryMonth(null)}>Ciclo actual</button>}
+              </div>
               <div className="filter-tabs" aria-label="Filtrar movimientos">
                 {(['all', 'income', 'expense'] as Filter[]).map((value) => (
                   <button
@@ -234,8 +254,8 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
               {visibleTransactions.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-icon"><EmptyIcon /></div>
-                  <h3>{transactions.length === 0 ? 'Todavía no hay movimientos' : 'No hay resultados en este filtro'}</h3>
-                  <p>{transactions.length === 0 ? 'Cuando añadas un ingreso o un gasto, aparecerá aquí.' : 'Prueba a seleccionar otro tipo de movimiento.'}</p>
+                  <h3>{selectedTransactions.length === 0 ? 'Sin movimientos en este ciclo' : 'No hay resultados en este filtro'}</h3>
+                  <p>{selectedTransactions.length === 0 ? 'Puedes consultar otros meses en el historial.' : 'Prueba a seleccionar otro tipo de movimiento.'}</p>
                 </div>
               ) : (
                 <ul className="transaction-list">
@@ -323,7 +343,7 @@ export default function Dashboard({ transactions, onAdd, transactionDraft, onTra
           <p>Tus datos se cifran antes de sincronizarse.</p>
         </footer>
       </main>
-      {editingTransaction && <TransactionEditor key={editingTransaction.id} transaction={editingTransaction} onSave={onUpdate} onClose={() => setEditingTransaction(null)} />}
+      {editingTransaction && <TransactionEditor key={editingTransaction.id} transaction={editingTransaction} today={today} onSave={onUpdate} onClose={() => setEditingTransaction(null)} />}
       {settingsOpen && <SettingsPanel theme={theme} onThemeChange={onThemeChange} currentBalance={totals.balance} onAdjustBalance={onAdjustBalance} transactions={transactions} reserveMovements={reserveMovements} loans={loans} fixedExpenses={fixedExpenses} monthlyBudget={monthlyBudget} futureSavings={futureSavings} onImportBackup={onImportBackup} onClose={() => setSettingsOpen(false)} />}
       {viewingPhoto && <div className="photo-viewer" role="dialog" aria-modal="true" aria-label="Foto ampliada" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewingPhoto(null) }}><button type="button" onClick={() => setViewingPhoto(null)} aria-label="Cerrar foto"><CloseIcon /></button><img src={viewingPhoto} alt="Foto ampliada de la compra" /></div>}
     </div>
