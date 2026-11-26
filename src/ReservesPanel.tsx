@@ -21,9 +21,9 @@ const today = getLocalDate()
 
 interface ReservesPanelProps {
   movements: ReserveMovement[]
-  onAdd: (movement: ReserveMovement) => void
+  onAdd: (movement: ReserveMovement) => boolean
   onDelete: (id: string) => void
-  onUpdate: (movement: ReserveMovement) => void
+  onUpdate: (movement: ReserveMovement) => boolean
 }
 
 export default function ReservesPanel({ movements, onAdd, onDelete, onUpdate }: ReservesPanelProps) {
@@ -36,6 +36,7 @@ export default function ReservesPanel({ movements, onAdd, onDelete, onUpdate }: 
   const [description, setDescription] = useState('')
   const [movementDate, setMovementDate] = useState(today)
   const [editing, setEditing] = useState<ReserveMovement | null>(null)
+  const [affectsAvailable, setAffectsAvailable] = useState(true)
   const [error, setError] = useState('')
 
   const totals = useMemo(() => getReserveTotals(movements), [movements])
@@ -109,6 +110,7 @@ export default function ReservesPanel({ movements, onAdd, onDelete, onUpdate }: 
       reserve,
       action,
       amount: numericAmount,
+      affectsAvailable: reserve === 'savings' ? affectsAvailable : undefined,
       cryptoAsset: reserve === 'crypto' ? destination : undefined,
       cryptoSourceAsset: action === 'transfer' ? source : undefined,
       fee: action === 'transfer' && numericFee > 0 ? numericFee : undefined,
@@ -117,18 +119,19 @@ export default function ReservesPanel({ movements, onAdd, onDelete, onUpdate }: 
       createdAt: editing?.createdAt ?? now,
       updatedAt: now,
     }
-    if (editing) onUpdate(nextMovement)
-    else onAdd(nextMovement)
+    if (!(editing ? onUpdate(nextMovement) : onAdd(nextMovement))) return
     setAmount('')
     setFee('')
     setDescription('')
     setMovementDate(today)
     setEditing(null)
+    setAffectsAvailable(true)
     setError('')
   }
 
   function startEdit(movement: ReserveMovement) {
     setEditing(movement)
+    setAffectsAvailable(movement.reserve === 'crypto' || movement.affectsAvailable === true)
     setReserve(movement.reserve)
     setAction(movement.action)
     setAmount(String(movement.amount).replace('.', ','))
@@ -143,6 +146,7 @@ export default function ReservesPanel({ movements, onAdd, onDelete, onUpdate }: 
 
   function cancelEdit() {
     setEditing(null)
+    setAffectsAvailable(true)
     setAmount('')
     setFee('')
     setDescription('')
@@ -272,6 +276,12 @@ export default function ReservesPanel({ movements, onAdd, onDelete, onUpdate }: 
             </div>
           )}
 
+          {reserve === 'savings' && editing && (
+            <label className="reserve-available-option">
+              <input type="checkbox" checked={affectsAvailable} onChange={(event) => setAffectsAvailable(event.target.checked)} />
+              Actualizar Disponible con este traspaso
+            </label>
+          )}
           {error && <p className="form-error" role="alert">{error}</p>}
           <button type="submit" className="primary-button reserve-submit">
             {action === 'deposit' ? <PlusIcon /> : action === 'withdraw' ? <MinusIcon /> : <CryptoIcon />}

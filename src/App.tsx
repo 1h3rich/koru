@@ -201,7 +201,8 @@ export default function App() {
 
   function adjustCurrentBalance(targetBalance: number) {
     const date = localDate()
-    const adjustment = calculateBalanceAdjustment(getAvailableBalance(withFixedPaymentMovements(transactions, monthlyBudget), loans, date), targetBalance)
+    const ledger = withFixedPaymentMovements(transactions, monthlyBudget)
+    const adjustment = calculateBalanceAdjustment(getAvailableBalance(ledger, loans, date, reserveMovements), targetBalance)
     if (!adjustment) {
       setFeedback({ id: ++feedbackSequence.current, message: 'El saldo ya coincide. No hace falta cambiar nada.', tone: 'success' })
       return true
@@ -236,17 +237,20 @@ export default function App() {
           reserveMovementId: movement.id,
         }, ...transactions]
       : transactions
+    const message = movement.affectsAvailable ? 'Traspaso de ahorro guardado y sincronizado'
+      : movement.action === 'transfer' ? 'Cambio de criptomonedas guardado' : 'Reserva actualizada y sincronizada'
+    if (!sync(nextTransactions, nextReserves, loans, message)) return false
     setTransactions(nextTransactions)
     setReserveMovements(nextReserves)
-    sync(nextTransactions, nextReserves, loans, movement.action === 'transfer' ? 'Cambio de criptomonedas guardado' : 'Reserva actualizada y sincronizada')
+    return true
   }
 
   function deleteReserveMovement(id: string) {
     const nextReserves = reserveMovements.filter((movement) => movement.id !== id)
     const nextTransactions = transactions.filter((transaction) => transaction.reserveMovementId !== id)
+    if (!sync(nextTransactions, nextReserves, loans, 'Movimiento de reserva eliminado')) return
     setTransactions(nextTransactions)
     setReserveMovements(nextReserves)
-    sync(nextTransactions, nextReserves, loans, 'Movimiento de reserva eliminado')
   }
 
   function updateReserveMovement(movement: ReserveMovement) {
@@ -266,9 +270,10 @@ export default function App() {
           reserveMovementId: movement.id,
         }, ...withoutLinkedFee]
       : withoutLinkedFee
+    if (!sync(nextTransactions, nextReserves, loans, 'Movimiento de reserva actualizado')) return false
     setTransactions(nextTransactions)
     setReserveMovements(nextReserves)
-    sync(nextTransactions, nextReserves, loans, 'Movimiento de reserva actualizado')
+    return true
   }
 
 

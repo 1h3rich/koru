@@ -172,6 +172,7 @@ export interface ReserveMovement {
   reserve: ReserveType
   action: ReserveAction
   amount: number
+  affectsAvailable?: boolean
   cryptoAsset?: string
   cryptoSourceAsset?: string
   fee?: number

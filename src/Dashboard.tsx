@@ -36,9 +36,9 @@ interface DashboardProps {
   reserveMovements: ReserveMovement[]
   syncStatus: SyncStatus
   feedback: AppFeedback | null
-  onAddReserveMovement: (movement: ReserveMovement) => void
+  onAddReserveMovement: (movement: ReserveMovement) => boolean
   onDeleteReserveMovement: (id: string) => void
-  onUpdateReserveMovement: (movement: ReserveMovement) => void
+  onUpdateReserveMovement: (movement: ReserveMovement) => boolean
   loans: Loan[]
   fixedExpenses: FixedExpense[]
   monthlyBudget: MonthlyBudget
@@ -75,7 +75,7 @@ export default function Dashboard({ transactions, onAdd, onConfirmIncomeReceipt,
     const expense = currentTransactions.filter((item) => item.type === 'expense' && !item.balanceAdjustment).reduce((sum, item) => sum + item.amount, 0)
     return { income, expense }
   }, [currentTransactions])
-  const balance = useMemo(() => getAvailableBalance(ledger, loans, today), [ledger, loans, today])
+  const balance = useMemo(() => getAvailableBalance(ledger, loans, today, reserveMovements), [ledger, loans, today, reserveMovements])
   const loaned = useMemo(() => loans.reduce((sum, loan) => sum + getLoanOutstanding(loan), 0), [loans])
 
   const visibleTransactions = useMemo(

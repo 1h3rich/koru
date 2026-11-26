@@ -51,7 +51,7 @@ function cents(value: number): number {
   return Math.round(value * 100)
 }
 
-export function getAvailableBalance(transactions: Transaction[], loans: Loan[], today?: string): number {
+export function getAvailableBalance(transactions: Transaction[], loans: Loan[], today?: string, reserveMovements: ReserveMovement[] = []): number {
   const transactionCents = transactions.reduce((total, transaction) => {
     if (today && transaction.date > today) return total
     const signedAmount = transaction.type === 'income' ? cents(transaction.amount) : -cents(transaction.amount)
@@ -61,7 +61,13 @@ export function getAvailableBalance(transactions: Transaction[], loans: Loan[], 
     if (today && loan.lentDate > today) return total
     return total + cents(getLoanOutstanding(loan))
   }, 0)
-  return (transactionCents - loanedCents) / 100
+  const savingsCents = reserveMovements.reduce((total, movement) => {
+    if (movement.reserve !== 'savings' || movement.affectsAvailable !== true || (today && movement.date > today)) return total
+    if (movement.action === 'deposit') return total + cents(movement.amount)
+    if (movement.action === 'withdraw') return total - cents(movement.amount)
+    return total
+  }, 0)
+  return (transactionCents - loanedCents - savingsCents) / 100
 }
 
 export function calculateBalanceAdjustment(currentBalance: number, targetBalance: number): { type: TransactionType, amount: number } | null {
