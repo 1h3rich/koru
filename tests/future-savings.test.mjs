@@ -47,11 +47,11 @@ test('Calendar handles leap months, past months and future months', () => {
   assert.throws(() => calculateFutureSavings([], plan, '2026-13'))
 })
 
-test('A savings goal uses the planned income and active fixed expenses, rounding up to a full month', () => {
+test('A savings goal uses the chosen monthly saving and rounds up to a full month', () => {
   const expenses = [{ amount: 700, active: true }, { amount: 200, active: false }]
-  assert.deepEqual(calculateSavingsGoal(1500, expenses, 10_000), { fixedTotal: 700, free: 800, months: 13 })
-  assert.equal(calculateSavingsGoal(500, expenses, 10_000).months, null)
-  assert.equal(calculateSavingsGoal(0, expenses, 10_000).free, -700)
-  assert.equal(calculateSavingsGoal(null, expenses, 10_000).free, null)
+  assert.deepEqual(calculateSavingsGoal(1500, expenses, 10_000, 200), { fixedTotal: 700, free: 800, months: 50 })
+  assert.equal(calculateSavingsGoal(500, expenses, 10_000, 0).months, null)
+  assert.equal(calculateSavingsGoal(0, expenses, 10_000, 200).free, -700)
+  assert.deepEqual(calculateSavingsGoal(null, expenses, 10_000, 300.50), { fixedTotal: 700, free: null, months: 34 })
   assert.ok(validFutureSavingsPlan({ ...plan, goalAmount: 10000 }))
 })

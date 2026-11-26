@@ -10,14 +10,15 @@ export function validFutureSavingsPlan(plan: unknown): plan is FutureSavingsPlan
     && typeof value.updatedAt === 'number' && Number.isFinite(value.updatedAt) && value.updatedAt >= 0
 }
 
-export function calculateSavingsGoal(income: number | null, expenses: FixedExpense[], goal: number) {
+export function calculateSavingsGoal(income: number | null, expenses: FixedExpense[], goal: number, monthlySaving: number) {
   const fixedCents = expenses.reduce((sum, expense) => expense.active ? sum + Math.round(expense.amount * 100) : sum, 0)
   const freeCents = income === null ? null : Math.round(income * 100) - fixedCents
   const goalCents = Math.round(goal * 100)
+  const savingCents = Math.round(monthlySaving * 100)
   return {
     fixedTotal: fixedCents / 100,
     free: freeCents === null ? null : freeCents / 100,
-    months: freeCents !== null && freeCents > 0 && goalCents > 0 ? Math.ceil(goalCents / freeCents) : null,
+    months: goalCents > 0 && savingCents > 0 ? Math.ceil(goalCents / savingCents) : null,
   }
 }
 

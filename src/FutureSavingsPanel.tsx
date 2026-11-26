@@ -37,7 +37,7 @@ export default function FutureSavingsPanel({ transactions, fixedExpenses, monthl
           <label htmlFor="savings-month">Mes de referencia</label>
           <MonthPicker id="savings-month" value={month} onChange={setSelected} />
         </div>
-        <SavingsGoalForm key={plan?.goalAmount ?? 'empty-goal'} plan={plan} income={income} expenses={fixedExpenses} onSave={onSave} />
+        <SavingsGoalForm key={`${plan?.goalAmount ?? 0}:${plan?.monthlySaving ?? 0}`} plan={plan} income={income} expenses={fixedExpenses} onSave={onSave} />
         <details className="savings-method">
           <summary>Historial del presupuesto</summary>
           <p>Nóminas cobradas menos gastos registrados por periodo.</p>
@@ -61,20 +61,26 @@ export default function FutureSavingsPanel({ transactions, fixedExpenses, monthl
 
 function SavingsGoalForm({ plan, income, expenses, onSave }: Pick<Props, 'plan' | 'onSave'> & { income: number | null, expenses: FixedExpense[] }) {
   const [goal, setGoal] = useState(() => plan?.goalAmount ? String(plan.goalAmount).replace('.', ',') : '')
+  const [monthlySaving, setMonthlySaving] = useState(() => plan?.monthlySaving ? String(plan.monthlySaving).replace('.', ',') : '')
   const [error, setError] = useState('')
   const parsedGoal = parseBudgetAmount(goal)
   const validGoal = Number.isFinite(parsedGoal) && parsedGoal >= 0.01 && parsedGoal <= MAX_MONTHLY_INCOME
-  const { fixedTotal, free, months } = calculateSavingsGoal(income, expenses, validGoal ? parsedGoal : 0)
+  const parsedSaving = parseBudgetAmount(monthlySaving)
+  const validSaving = Number.isFinite(parsedSaving) && parsedSaving >= 0.01 && parsedSaving <= MAX_MONTHLY_INCOME
+  const saving = validSaving ? Math.round(parsedSaving * 100) / 100 : 0
+  const { fixedTotal, free, months } = calculateSavingsGoal(income, expenses, validGoal ? parsedGoal : 0, saving)
+  const exceedsMargin = validSaving && free !== null && saving > Math.max(0, free)
 
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!validGoal) {
-      setError('Introduce un objetivo mayor que cero.')
+    if (!validGoal || !validSaving) {
+      setError(validGoal ? 'Introduce un ahorro mensual válido, mayor que cero.' : 'Introduce un objetivo de ahorro válido, mayor que cero.')
       return
     }
     onSave({
-      ...(plan ?? { monthlySaving: 0, incomeOverride: null, pendingExpenses: 0 }),
+      ...(plan ?? { incomeOverride: null, pendingExpenses: 0 }),
       goalAmount: Math.round(parsedGoal * 100) / 100,
+      monthlySaving: saving,
       updatedAt: Math.max(Date.now(), (plan?.updatedAt ?? 0) + 1),
     })
   }
@@ -84,16 +90,20 @@ function SavingsGoalForm({ plan, income, expenses, onSave }: Pick<Props, 'plan' 
       <dl className="month-totals" aria-label="Margen mensual">
         <div><dt>Ingresos previstos</dt><dd>{income === null ? '—' : currency.format(income)}</dd></div>
         <div><dt>Gastos fijos activos</dt><dd>{currency.format(fixedTotal)}</dd></div>
-        <div className="month-difference"><dt>Dinero libre al mes</dt><dd className={free !== null && free < 0 ? 'negative' : ''}>{free === null ? '—' : currency.format(free)}</dd></div>
+        <div className="month-difference"><dt>Libre tras gastos fijos</dt><dd className={free !== null && free < 0 ? 'negative' : ''}>{free === null ? '—' : currency.format(free)}</dd></div>
       </dl>
       <div className="field">
         <label htmlFor="savings-goal">Objetivo de ahorro total</label>
         <div className="amount-input"><span>€</span><input id="savings-goal" inputMode="text" placeholder="Ej. 10.000 €" value={goal} onChange={(event) => { setGoal(event.target.value); setError('') }} required /></div>
       </div>
+      <div className="field">
+        <label htmlFor="savings-monthly-amount">Ahorro mensual</label>
+        <div className="amount-input"><span>€</span><input id="savings-monthly-amount" inputMode="text" placeholder="Ej. 200 €" value={monthlySaving} onChange={(event) => { setMonthlySaving(event.target.value); setError('') }} required /></div>
+      </div>
       <div className="savings-goal-result" aria-live="polite">
         <span>Tiempo estimado</span>
         <strong>{months === null ? '—' : `${numberFormatter.format(months)} ${months === 1 ? 'mes' : 'meses'}`}</strong>
-        <p>{income === null ? 'Añade tus ingresos recurrentes en «Meses» para calcular el plazo.' : free !== null && free <= 0 ? 'Con estos ingresos y gastos fijos, el margen para ahorrar es de 0 €.' : 'Partiendo de 0 € y ahorrando todo el margen mensual. Los gastos variables reducirían ese margen.'}</p>
+        {exceedsMargin ? <p>El ahorro mensual supera el margen tras los gastos fijos.</p> : months !== null && <p>Partiendo de 0 €.</p>}
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
       <button type="submit" className="primary-button"><CheckIcon /> Guardar objetivo</button>
